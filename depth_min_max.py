@@ -59,8 +59,10 @@ if not found_non_zero:
 
 
 # Output to a text file
-with open('output_values.txt', 'wa') as f:
+with open('object_depth.txt', 'a') as f:
+    f.write(f"{sys.argv[1]}\n")
     f.write(f"Min (non-zero): {min_val}\n")
     f.write(f"Max: {max_val}\n")
 
+print(f"{sys.argv[1]}")
 print(f"Min (non-zero): {min_val}, Max: {max_val}")
