@@ -13,7 +13,7 @@ last_x, last_y = 0, 0
 yaw, pitch = 0.0, 0.0
 left_mouse_pressed = False
 
-cam_offset = np.array([0.0, 0.0, 0.0], dtype=np.float32)  # X, Y, Z
+cam_offset = np.array([0.0, 0.0, -1.0], dtype=np.float32)  # X, Y, Z
 
 def load_depth_image(path, max_depth=5.0):
     """
@@ -45,7 +45,7 @@ def depth_to_mesh(depth, intrinsics, rgb_img=None):
     fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
 
     i, j = np.indices((h, w), dtype=np.int16)
-    z = depth
+    z = -depth
     x = (j - cx) * z / fx
     y = (i - cy) * z / fy
     vertices = np.stack((x, y, z), axis=-1).reshape(-1, 3)
@@ -175,7 +175,62 @@ def render_mesh_to_image(vertices, colors, indices, width, height, output_path):
 def identity_view():
     return np.eye(4, dtype=np.float32)
 
-def orbit_view_matrix(yaw_deg, pitch_deg, radius=2.5, offset=(0.0, 0.0, 0.0)):
+
+def orthographic_projection(left, right, bottom, top, near, far):
+    proj = np.zeros((4, 4), dtype=np.float32)
+
+    proj[0, 0] = 2.0 / (right - left)
+    proj[1, 1] = 2.0 / (top - bottom)
+    proj[2, 2] = -2.0 / (far - near)
+    proj[0, 3] = -(right + left) / (right - left)
+    proj[1, 3] = -(top + bottom) / (top - bottom)
+    proj[2, 3] = -(far + near) / (far - near)
+    proj[3, 3] = 1.0
+
+    return proj
+
+
+def orthographic_projection_infinite_depth(left, right, bottom, top, near):
+    proj = np.zeros((4, 4), dtype=np.float32)
+
+    proj[0, 0] = 2.0 / (right - left)  # Scale X
+    proj[1, 1] = 2.0 / (top - bottom)  # Scale Y
+    proj[2, 2] = -1.0  # Use -1 for infinite depth, no scaling on Z axis
+    proj[0, 3] = -(right + left) / (right - left)  # Translate X
+    proj[1, 3] = -(top + bottom) / (top - bottom)  # Translate Y
+    proj[2, 3] = -(2.0 * near)  # Adjust Z to account for near plane
+    proj[3, 3] = 1.0  # Homogeneous coordinate
+
+    return proj
+
+
+def orbit_view_matrix(yaw, pitch):
+    # Identity matrix
+    view = np.eye(4, dtype=np.float32)
+
+    # Apply yaw (rotation around Y-axis) - Rotate around vertical axis (up)
+    yaw_matrix = np.array([
+        [np.cos(yaw), 0, np.sin(yaw), 0],
+        [0, 1, 0, 0],
+        [-np.sin(yaw), 0, np.cos(yaw), 0],
+        [0, 0, 0, 1]
+    ], dtype=np.float32)
+
+    # Apply pitch (rotation around X-axis) - Rotate around horizontal axis
+    pitch_matrix = np.array([
+        [1, 0, 0, 0],
+        [0, np.cos(pitch), -np.sin(pitch), 0],
+        [0, np.sin(pitch), np.cos(pitch), 0],
+        [0, 0, 0, 1]
+    ], dtype=np.float32)
+
+    # Combine yaw and pitch rotations
+    view = np.dot(view, yaw_matrix)
+    view = np.dot(view, pitch_matrix)
+
+    return view
+    
+def orbit_view_matrix_pan(yaw_deg, pitch_deg, radius=1.0, offset=(0.0, 0.0, 0.0)):
     yaw_rad = np.radians(yaw_deg)
     pitch_rad = np.radians(pitch_deg)
     x = radius * np.cos(pitch_rad) * np.sin(yaw_rad)
@@ -183,7 +238,7 @@ def orbit_view_matrix(yaw_deg, pitch_deg, radius=2.5, offset=(0.0, 0.0, 0.0)):
     z = radius * np.cos(pitch_rad) * np.cos(yaw_rad)
 
     eye = np.array([x + offset[0], y + offset[1], z + offset[2]], dtype=np.float32)
-    center = np.array([offset[0], offset[1], offset[2]], dtype=np.float32)  # X, Y, Z
+    center = np.array([offset[0], offset[1], offset[2]], dtype=np.float32)  # pan applied here
     up = np.array([0, 1, 0], dtype=np.float32)
 
     # lookAt matrix
@@ -195,10 +250,13 @@ def orbit_view_matrix(yaw_deg, pitch_deg, radius=2.5, offset=(0.0, 0.0, 0.0)):
 
     view = np.eye(4, dtype=np.float32)
     view[0, :3] = s
-    view[1, :3] = -u
-    view[2, :3] = f
-    view[:3, 3] = -eye @ np.array([s, u, -f])
+    view[1, :3] = u
+    view[2, :3] = -f
+    view[:3, 3] = eye @ np.array([s, u, -f])
+
+    #print(view)
     return view
+    
 
 def mouse_button_callback(window, button, action, mods):
     global left_mouse_pressed
@@ -213,8 +271,8 @@ def cursor_position_callback(window, xpos, ypos):
     if left_mouse_pressed:
         dx = xpos - last_x
         dy = ypos - last_y
-        yaw += dx * 0.5
-        pitch += dy * 0.5
+        yaw += dx * 0.05
+        pitch += dy * 0.05
         pitch = max(min(pitch, 89.0), -89.0)  # clamp to avoid gimbal lock
     last_x, last_y = xpos, ypos
 
@@ -286,8 +344,22 @@ def render_point_cloud_live(vertices, colors, width, height):
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
     glEnableVertexAttribArray(1)
 
-    proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, 250, 250)
-    view = orbit_view_matrix(yaw, pitch, offset=cam_offset)
+    
+    
+    # Define the orthographic projection with infinite depth
+    left = -2
+    right = 2
+    bottom = -2
+    top = 2
+    near = 0.001  # Set near plane
+
+    # Use the modified infinite depth orthographic projection
+    #proj = orthographic_projection_infinite_depth(left, right, bottom, top, near)
+    proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, -250, 250)
+  
+    
+    #view = identity_view()
+    view = orbit_view_matrix_pan(yaw, pitch, offset=cam_offset)
 
     proj_loc = glGetUniformLocation(shader, "projection")
     view_loc = glGetUniformLocation(shader, "view")
@@ -300,7 +372,8 @@ def render_point_cloud_live(vertices, colors, width, height):
     glEnable(GL_DEPTH_TEST)
 
     while not glfw.window_should_close(window):
-        view = orbit_view_matrix(yaw, pitch, offset=cam_offset)
+        view = orbit_view_matrix_pan(yaw, pitch, offset=cam_offset)
+        #print(cam_offset)
         glUniformMatrix4fv(view_loc, 1, GL_TRUE, view)
         glfw.poll_events()
         glClearColor(0, 0, 0, 1)
@@ -319,7 +392,7 @@ def perspective_from_intrinsics_infinite_depth(fx, fy, cx, cy, width, height, sh
     cx += shift_x
     cy += shift_y
 
-    proj[0, 0] = 2 * fx / width
+    proj[0, 0] = -2 * fx / width
     proj[1, 1] = 2 * fy / height
     proj[0, 2] = 1 - 2 * cx / width
     proj[1, 2] = 2 * cy / height - 1
