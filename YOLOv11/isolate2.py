@@ -11,11 +11,11 @@ import cv2
 import numpy as np
 
 
-filename = "left"
+filename = "right"
 
 img = cv2.imread(filename + ".JPG")
 
-depth = cv2.imread(filename + ".png")
+depth = cv2.imread(filename + ".png", cv2.IMREAD_UNCHANGED)
 
 
 # if you want all classes
@@ -31,7 +31,7 @@ i = 0
 
 for r in results:
     img = np.copy(r.orig_img)
-    depth = cv2.imread("right.png")
+    depth = cv2.imread(filename + ".png", cv2.IMREAD_UNCHANGED)
     img_name = Path(r.path).stem
 
     # Iterate each object contour 
@@ -53,7 +53,8 @@ for r in results:
         # OPTION-1: Isolate object with black background
         mask3ch = cv2.cvtColor(b_mask, cv2.COLOR_GRAY2BGR)
         isolated = cv2.bitwise_and(mask3ch, img)
-        isolated_depth = cv2.bitwise_and(mask3ch, depth)
+#        isolated_depth = cv2.bitwise_iand(mask3ch, depth)
+        isolated_depth = cv2.bitwise_and(depth, depth, mask=b_mask)
 
         # OPTION-2: Isolate object with transparent background (when saved as PNG)
         #isolated = np.dstack([img, b_mask])
@@ -63,7 +64,7 @@ for r in results:
         #iso_crop = isolated[y1:y2, x1:x2]
         name = "isolate_" + filename + "_" + str(label) + str(i) + ".jpg"
         cv2.imwrite(name, isolated)
-        name = "isolate_" + filename + "_" + str(label) + str(i) + "_depth.jpg"
+        name = "isolate_" + filename + "_" + str(label) + str(i) + "_depth.png"
         cv2.imwrite(name, isolated_depth)
         i = i + 1
 
