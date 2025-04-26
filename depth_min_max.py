@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-
+import sys
 
 
 def load_depth_image(path, max_depth=5.0):
@@ -26,7 +26,9 @@ def load_depth_image(path, max_depth=5.0):
     else:
         raise ValueError(f"Unsupported depth image format: {depth_img.dtype}")
 
-image = load_depth_image("images/isolate_right_cup0_depth.png", max_depth=15)
+#image = load_depth_image("images/isolate_right_cup0_depth.png", max_depth=15)
+image = load_depth_image(sys.argv[1], max_depth=15)
+
 
 if image is None:
     raise ValueError("Image not loaded. Check the file path.")
@@ -57,7 +59,7 @@ if not found_non_zero:
 
 
 # Output to a text file
-with open('output_values.txt', 'w') as f:
+with open('output_values.txt', 'wa') as f:
     f.write(f"Min (non-zero): {min_val}\n")
     f.write(f"Max: {max_val}\n")
 
