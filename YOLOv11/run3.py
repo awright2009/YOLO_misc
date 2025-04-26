@@ -36,10 +36,6 @@ for result in results:
         print("class name is ", yolo_classes[color_number])
 
 
-for result in results:
-    for mask in result.masks:
-        print("mask ", box.xy.tolist())
-
 
 
 
