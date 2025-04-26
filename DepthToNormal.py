@@ -38,7 +38,7 @@ def depth_to_mesh(depth, intrinsics):
     
     fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
 
-    i, j = np.indices((h, w))
+    i, j = np.indices((h, w), dtype=np.int16)
     z = -depth
     x = (j - cx) * z / fx
     y = (i - cy) * z / fy
@@ -157,7 +157,7 @@ def render_mesh_to_image(vertices, colors, indices, width, height, output_path):
         raise Exception("Framebuffer not complete")
 
     # Upload projection/view matrices
-    proj = perspective_from_intrinsics(4000.0, 3000.0, 2000.0, 1500.0, width, height)
+    proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, 250, 250)
     view = identity_view()
 
 
@@ -188,14 +188,18 @@ def render_mesh_to_image(vertices, colors, indices, width, height, output_path):
 
     glfw.terminate()
 
-def perspective_from_intrinsics(fx, fy, cx, cy, width, height, near=0.1, far=10.0):
+def perspective_from_intrinsics_infinite_depth(fx, fy, cx, cy, width, height, shift_x, shift_y, near=0.1):
     proj = np.zeros((4, 4), dtype=np.float32)
+
+    cx += shift_x
+    cy += shift_y
+
     proj[0, 0] = 2 * fx / width
     proj[1, 1] = 2 * fy / height
     proj[0, 2] = 1 - 2 * cx / width
     proj[1, 2] = 2 * cy / height - 1
-    proj[2, 2] = -(far + near) / (far - near)
-    proj[2, 3] = -(2 * far * near) / (far - near)
+    proj[2, 2] = -1  # limit of -(far + near)/(far - near) as far -> ∞
+    proj[2, 3] = -2 * near  # limit of -(2 * far * near)/(far - near) as far -> ∞
     proj[3, 2] = -1
     return proj
 
@@ -223,7 +227,7 @@ def save_mesh_to_obj(filename, vertices, indices, colors=None):
 # Run it all together
 if __name__ == "__main__":
     numpy.set_printoptions(threshold=sys.maxsize)
-    depth_img = load_depth_image("images/left.png", max_depth=2.5)
+    depth_img = load_depth_image("images/left_small.png", max_depth=15)
 
 
     height, width = depth_img.shape[:2]
@@ -232,5 +236,5 @@ if __name__ == "__main__":
 
     verts, colors, tris = depth_to_mesh(depth_img, intrinsics)
 
-    render_mesh_to_image(verts, colors, tris, width, height, "normal_render_opengl.png")
+    render_mesh_to_image(verts, colors, tris, width, height, "images/left_small_normal.png")
     save_mesh_to_obj("output_mesh.obj", verts, tris, colors)
