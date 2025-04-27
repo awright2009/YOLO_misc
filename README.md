@@ -2,7 +2,7 @@
 
 Misc code
 
-	DepthToCloud.py -- Takes 16 bit depthmap image and corresponding rgb image and displays the depth map
+	DepthToCloud.py -- Takes 16 bit depthmap image and corresponding rgb image and displays the depth and image as a point cloud
 
 	DepthToNormal.py -- Takes 16 bit depthmap image and generates a mesh colored by normal color and writes the image to disk.
 		See images/left_small_normal.png and images/right_small_normal.png
