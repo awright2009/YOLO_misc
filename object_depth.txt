@@ -1,8 +1,0 @@
-./images/left.PNG
-Image depth ranged from 0.0 to 15.0
-Min: 0.0004577706567943096
-Max: 15.0
-./images/right.PNG
-Image depth ranged from 0.0 to 15.0
-Min: 0.0002288853283971548
-Max: 15.0
