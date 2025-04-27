@@ -39,7 +39,12 @@ def depth_to_mesh(depth, intrinsics):
     fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
 
     i, j = np.indices((h, w), dtype=np.int16)
-    z = -depth
+    
+    # prevent divide by zero, zero means far away
+    depth[depth == 0] = 1
+    z = -1 / depth
+
+
     x = (j - cx) * z / fx
     y = (i - cy) * z / fy
     vertices = np.stack((x, y, z), axis=-1).reshape(-1, 3)
@@ -227,7 +232,7 @@ def save_mesh_to_obj(filename, vertices, indices, colors=None):
 # Run it all together
 if __name__ == "__main__":
     numpy.set_printoptions(threshold=sys.maxsize)
-    depth_img = load_depth_image("images/left_small.png", max_depth=15)
+    depth_img = load_depth_image("images/right_small.png", max_depth=1)
 
 
     height, width = depth_img.shape[:2]
@@ -236,5 +241,5 @@ if __name__ == "__main__":
 
     verts, colors, tris = depth_to_mesh(depth_img, intrinsics)
 
-    render_mesh_to_image(verts, colors, tris, width, height, "images/left_small_normal.png")
+    render_mesh_to_image(verts, colors, tris, width, height, "images/right_small_normal.png")
     save_mesh_to_obj("output_mesh.obj", verts, tris, colors)
