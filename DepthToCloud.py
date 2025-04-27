@@ -45,7 +45,12 @@ def depth_to_mesh(depth, intrinsics, rgb_img=None):
     fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
 
     i, j = np.indices((h, w), dtype=np.int16)
-    z = -depth
+    
+    # prevent divide by zero, zero means far away
+    depth[depth == 0] = 1
+    z = -1 / depth
+
+   	
     x = (j - cx) * z / fx
     y = (i - cy) * z / fy
     vertices = np.stack((x, y, z), axis=-1).reshape(-1, 3)
@@ -288,9 +293,9 @@ def key_callback(window, key, scancode, action, mods):
         elif key == glfw.KEY_DOWN:
             cam_offset[2] -= 0.05  # pan backward (Z-)
         elif key == glfw.KEY_ENTER:
-            cam_offset[1] += 0.05  # pan up (Y+)
+            cam_offset[1] -= 0.05  # pan up (Y+)
         elif key == glfw.KEY_LEFT_SHIFT or key == glfw.KEY_RIGHT_SHIFT:
-            cam_offset[1] -= 0.05  # pan down (Y-)
+            cam_offset[1] += 0.05  # pan down (Y-)
 
 def render_point_cloud_live(vertices, colors, width, height):
     window = init_opengl_context(width, height)
@@ -424,7 +429,7 @@ def save_mesh_to_obj(filename, vertices, indices, colors=None):
 # Run it all together
 if __name__ == "__main__":
     numpy.set_printoptions(threshold=sys.maxsize)
-    depth_img = load_depth_image("images/left_small.png", max_depth=15)
+    depth_img = load_depth_image("images/left_small.png", max_depth=1)
     
     
     #rgb_img = cv2.cvtColor(cv2.imread("images/left.JPG"), cv2.COLOR_BGR2RGB)
