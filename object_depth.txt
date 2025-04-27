@@ -1,42 +1,8 @@
-./images/isolate_left_bottle3_depth.png
-Min (non-zero): 0.6786449551582336
-Max: 7.178759574890137
-./images/isolate_left_chair2_depth.png
-Min (non-zero): 0.5136186480522156
-Max: 5.135499954223633
-./images/isolate_left_chair4_depth.png
-Min (non-zero): 0.0009155413135886192
-Max: 6.574273109436035
-./images/isolate_left_chair5_depth.png
-Min (non-zero): 0.544060468673706
-Max: 5.1659417152404785
-./images/isolate_left_chair7_depth.png
-Min (non-zero): 1.2728313207626343
-Max: 8.55642032623291
-./images/isolate_left_cup0_depth.png
-Min (non-zero): 2.8832685947418213
-Max: 9.764935493469238
-./images/isolate_left_cup1_depth.png
-Min (non-zero): 0.0004577706567943096
-Max: 9.26413345336914
-./images/isolate_left_knife8_depth.png
-Min (non-zero): 5.956969261169434
-Max: 11.110551834106445
-./images/isolate_right_bottle3_depth.png
-Min (non-zero): 0.37170976400375366
-Max: 9.358434677124023
-./images/isolate_right_chair2_depth.png
-Min (non-zero): 0.48203253746032715
-Max: 9.979857444763184
-./images/isolate_right_chair4_depth.png
-Min (non-zero): 0.37582969665527344
-Max: 9.164796829223633
-./images/isolate_right_chair7_depth.png
-Min (non-zero): 0.6715495586395264
-Max: 6.764706134796143
-./images/isolate_right_cup0_depth.png
-Min (non-zero): 0.4737926125526428
-Max: 11.321125984191895
-./images/isolate_right_cup1_depth.png
-Min (non-zero): 0.2352941334247589
-Max: 7.555962562561035
+./images/left.PNG
+Image depth ranged from 0.0 to 15.0
+Min: 0.0004577706567943096
+Max: 15.0
+./images/right.PNG
+Image depth ranged from 0.0 to 15.0
+Min: 0.0002288853283971548
+Max: 15.0

@@ -41,6 +41,9 @@ max_val = 0
 height, width = image.shape
 
 
+
+
+
 # Flatten the image to 1D for efficient computation
 non_zero_pixels = image[image != 0]
 
@@ -61,8 +64,9 @@ if not found_non_zero:
 # Output to a text file
 with open('object_depth.txt', 'a') as f:
     f.write(f"{sys.argv[1]}\n")
-    f.write(f"Min (non-zero): {min_val}\n")
+    f.write(f"Image depth ranged from {np.min(image)} to {np.max(image)}\n")    
+    f.write(f"Min: {min_val}\n")
     f.write(f"Max: {max_val}\n")
 
 print(f"{sys.argv[1]}")
-print(f"Min (non-zero): {min_val}, Max: {max_val}")
+print(f"Min: {min_val}, Max: {max_val}")
