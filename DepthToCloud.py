@@ -7,13 +7,23 @@ import glfw
 
 import sys
 import numpy
+import math
+import random
 
 
 last_x, last_y = 0, 0
 yaw, pitch = 0.0, 0.0
 left_mouse_pressed = False
 
-cam_offset = np.array([0.0, 0.0, -1.0], dtype=np.float32)  # X, Y, Z
+
+right   = [1, 0, 0]
+up 			= [0, 1, 0]
+forward = [0, 0, 1]
+
+position = np.array([0.0, 0.0, 0.0], dtype=np.float32)  # X, Y, Z
+
+old_x = 0
+old_y = 0
 
 def load_depth_image(path, max_depth=5.0):
     """
@@ -50,7 +60,6 @@ def depth_to_mesh(depth, intrinsics, rgb_img=None):
     depth[depth == 0] = 1
     z = -1 / depth
 
-   	
     x = (j - cx) * z / fx
     y = (i - cy) * z / fy
     vertices = np.stack((x, y, z), axis=-1).reshape(-1, 3)
@@ -64,7 +73,6 @@ def depth_to_mesh(depth, intrinsics, rgb_img=None):
     triangles = np.array([], dtype=np.uint32).reshape(0, 3)
     return vertices.astype(np.float32), colors, triangles
 
-    return vertices.astype(np.float32), colors, triangles
 
 def init_opengl_context(width, height):
     if not glfw.init():
@@ -94,7 +102,7 @@ def render_mesh_to_image(vertices, colors, indices, width, height, output_path):
     out vec3 vColor;
 
     void main() {
-        gl_Position = projection * view * vec4(aPos, 1.0);
+        gl_Position = view * projection *  * vec4(aPos, 1.0);
         vColor = aColor;
     }
     """
@@ -234,31 +242,102 @@ def orbit_view_matrix(yaw, pitch):
     view = np.dot(view, pitch_matrix)
 
     return view
+
+def dot_product(VecA, VecB):
+    return VecA[0] * VecB[0] + VecA[1] * VecB[1] + VecA[2] * VecB[2]
+
+def cross_product(VecA, VecB):
+    result = [0, 0, 0]
+    result[0] = VecA[1] * VecB[2] - VecA[2] * VecB[1]
+    result[1] = VecA[2] * VecB[0] - VecA[0] * VecB[2]
+    result[2] = VecA[0] * VecB[1] - VecA[1] * VecB[0]
+    return result
+
+def normalize(vec):
+		mag = math.sqrt(vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2])
+		vec[0] = vec[0] / mag
+		vec[1] = vec[1] / mag
+		vec[2] = vec[2] / mag
+		return vec
+	
+	
+def rotate_vector(rad, vec, axis):
+    m = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    sinVal = math.sin(rad)
+    cosVal = math.cos(rad)
+    minusVal = 1.0 - cosVal
+
+    m[0][0] = cosVal + minusVal * axis[0] * axis[0];
+    m[0][1] = minusVal * axis[0] * axis[1] - sinVal * axis[2];
+    m[0][2] = minusVal * axis[0] * axis[2] + sinVal * axis[1];
+
+    m[1][0] = minusVal * axis[1] * axis[0] + sinVal * axis[2];
+    m[1][1] = cosVal + minusVal * axis[1] * axis[1];
+    m[1][2] = minusVal * axis[1] * axis[2] - sinVal * axis[0];
+
+    m[2][0] = minusVal * axis[2] * axis[0] - sinVal * axis[1];
+    m[2][1] = minusVal * axis[2] * axis[1] + sinVal * axis[0];
+    m[2][2] = cosVal + minusVal * axis[2] * axis[2];
+
+
+    result = [1, 2, 3]
+    #result = np.matmul(vec, m)
+    # matrix mult
+    result[0] = vec[0] * m[0][0] + vec[1] * m[1][0] + vec[2] * m[2][0]
+    result[1] = vec[0] * m[0][1] + vec[1] * m[1][1] + vec[2] * m[2][1]
+    result[2] = vec[0] * m[0][2] + vec[1] * m[1][2] + vec[2] * m[2][2]
+		
+    return result
+
     
-def orbit_view_matrix_pan(yaw_deg, pitch_deg, radius=1.0, offset=(0.0, 0.0, 0.0)):
+def view_matrix(yaw_deg, pitch_deg,  pos):
+    global forward
+    global up
+    global right
     yaw_rad = np.radians(yaw_deg)
     pitch_rad = np.radians(pitch_deg)
-    x = radius * np.cos(pitch_rad) * np.sin(yaw_rad)
-    y = radius * np.sin(pitch_rad)
-    z = radius * np.cos(pitch_rad) * np.cos(yaw_rad)
+    scale = 50.0
+    #up = np.array([0, 1, 0], dtype=np.float32)
+    vup = [0, 1, 0]
+    
+    
+    # Left / Right
+    forward = rotate_vector(scale * (yaw_rad / 100.0), forward, vup )
+    up = rotate_vector(scale * (yaw_rad / 100.0), up, vup)
 
-    eye = np.array([x + offset[0], y + offset[1], z + offset[2]], dtype=np.float32)
-    center = np.array([offset[0], offset[1], offset[2]], dtype=np.float32)  # pan applied here
-    up = np.array([0, 1, 0], dtype=np.float32)
+    # Up / Down
+    right = cross_product(up, forward)
+    right = normalize(right)
 
-    # lookAt matrix
-    f = center - eye
-    f /= np.linalg.norm(f)
-    s = np.cross(f, up)
-    s /= np.linalg.norm(s)
-    u = np.cross(s, f)
+    old_forward = forward
+    old_up = up
 
+    forward = rotate_vector(scale * (pitch_rad / 100.0), forward, right)
+    up = rotate_vector(scale * (pitch_rad / 100.0), up, right)
+    forward = normalize(forward)
+    up = normalize(up)
+
+    if (up[0] * vup[0] + up[1] * vup[1] + up[2] * vup[2]  < 0.004):
+        forward = old_forward
+        up = old_up
+
+    
     view = np.eye(4, dtype=np.float32)
-    view[0, :3] = s
-    view[1, :3] = u
-    view[2, :3] = -f
-    view[:3, 3] = eye @ np.array([s, u, -f])
+    view[0][0] = right[0]
+    view[1][0] = up[0]
+    view[2][0] = forward[0]
 
+    view[0][1] = right[1]
+    view[1][1] = up[1]
+    view[2][1] = forward[1]
+
+    view[0][2] = right[2]
+    view[1][2] = up[2]
+    view[2][2] = forward[2]
+
+    view[0][3] = dot_product(right, pos)
+    view[1][3] = dot_product(up, pos)
+    view[2][3] = dot_product(forward, pos)
     #print(view)
     return view
     
@@ -276,28 +355,31 @@ def cursor_position_callback(window, xpos, ypos):
     if left_mouse_pressed:
         dx = xpos - last_x
         dy = ypos - last_y
-        yaw += dx * 0.05
+        yaw -= dx * 0.05
         pitch += dy * 0.05
-        pitch = max(min(pitch, 89.0), -89.0)  # clamp to avoid gimbal lock
     last_x, last_y = xpos, ypos
 
 def key_callback(window, key, scancode, action, mods):
-    global cam_offset
+    global position
+
+    scale = 0.05
     if action in [glfw.PRESS, glfw.REPEAT]:
         if key == glfw.KEY_LEFT:
-            cam_offset[0] -= 0.05  # pan left
+            position[0] -= scale
         elif key == glfw.KEY_RIGHT:
-            cam_offset[0] += 0.05  # pan right
-        elif key == glfw.KEY_UP:
-            cam_offset[2] += 0.05  # pan forward (Z+)
-        elif key == glfw.KEY_DOWN:
-            cam_offset[2] -= 0.05  # pan backward (Z-)
+            position[0] += scale
         elif key == glfw.KEY_ENTER:
-            cam_offset[1] -= 0.05  # pan up (Y+)
+            position[1] -= scale
         elif key == glfw.KEY_LEFT_SHIFT or key == glfw.KEY_RIGHT_SHIFT:
-            cam_offset[1] += 0.05  # pan down (Y-)
+            position[1] += scale
+        elif key == glfw.KEY_UP:
+            position[2] += scale
+        elif key == glfw.KEY_DOWN:
+            position[2] -= scale
 
 def render_point_cloud_live(vertices, colors, width, height):
+    global old_x
+    global old_y
     window = init_opengl_context(width, height)
     
     glfw.set_mouse_button_callback(window, mouse_button_callback)
@@ -315,7 +397,7 @@ def render_point_cloud_live(vertices, colors, width, height):
     out vec3 vColor;
 
     void main() {
-        gl_Position = projection * view * vec4(aPos, 1.0);
+        gl_Position = (projection * view)  * vec4(aPos, 1.0);
         vColor = aColor;
         gl_PointSize = 2.0;
     }
@@ -336,6 +418,8 @@ def render_point_cloud_live(vertices, colors, width, height):
         compileShader(fragment_shader, GL_FRAGMENT_SHADER)
     )
 
+    glDisable(GL_CULL_FACE)
+
     vao = glGenVertexArrays(1)
     glBindVertexArray(vao)
 
@@ -349,6 +433,39 @@ def render_point_cloud_live(vertices, colors, width, height):
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
     glEnableVertexAttribArray(1)
 
+    box_vertex_data = np.zeros(3 * 3 + 3 * 3)
+
+    box_vertex_data[0] = 0.0
+    box_vertex_data[1] = 0.0
+    box_vertex_data[2] = -0.5
+
+    box_vertex_data[3] = random.uniform(0, 1)
+    box_vertex_data[4] = random.uniform(0, 1)
+    box_vertex_data[5] = random.uniform(0, 1)
+
+    box_vertex_data[6] = 2000.0
+    box_vertex_data[7] = 0.0
+    box_vertex_data[8] = -0.5
+
+    box_vertex_data[9]  = random.uniform(0, 1)
+    box_vertex_data[10] = random.uniform(0, 1)
+    box_vertex_data[11] = random.uniform(0, 1)
+
+
+    box_vertex_data[12] = 2000.0
+    box_vertex_data[13] = 2000.0
+    box_vertex_data[14] = -0.5
+
+    box_vertex_data[15] = random.uniform(0, 1)
+    box_vertex_data[16] = random.uniform(0, 1)
+    box_vertex_data[17] = random.uniform(0, 1)
+
+
+
+    vbo2 = glGenBuffers(1)
+    glBindBuffer(GL_ARRAY_BUFFER, vbo2)
+    glBufferData(GL_ARRAY_BUFFER, box_vertex_data.nbytes, box_vertex_data, GL_STATIC_DRAW)
+
     
     
     # Define the orthographic projection with infinite depth
@@ -361,10 +478,16 @@ def render_point_cloud_live(vertices, colors, width, height):
     # Use the modified infinite depth orthographic projection
     #proj = orthographic_projection_infinite_depth(left, right, bottom, top, near)
     proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, -250, 250)
-  
+
+
+    delta_x = yaw - old_x
+    delta_y = (pitch - old_y)
+
+    old_x = yaw
+    old_y = pitch
     
     #view = identity_view()
-    view = orbit_view_matrix_pan(yaw, pitch, offset=cam_offset)
+    view = view_matrix(delta_x, delta_y, position)
 
     proj_loc = glGetUniformLocation(shader, "projection")
     view_loc = glGetUniformLocation(shader, "view")
@@ -377,7 +500,12 @@ def render_point_cloud_live(vertices, colors, width, height):
     glEnable(GL_DEPTH_TEST)
 
     while not glfw.window_should_close(window):
-        view = orbit_view_matrix_pan(yaw, pitch, offset=cam_offset)
+        delta_x = yaw - old_x
+        delta_y = pitch - old_y
+
+        old_x = yaw
+        old_y = pitch
+        view = view_matrix(delta_x, delta_y, position)
         #print(cam_offset)
         glUniformMatrix4fv(view_loc, 1, GL_TRUE, view)
         glfw.poll_events()
@@ -386,6 +514,9 @@ def render_point_cloud_live(vertices, colors, width, height):
 
         glBindVertexArray(vao)
         glDrawArrays(GL_POINTS, 0, len(vertices))
+
+        glBindBuffer(GL_ARRAY_BUFFER, vbo2)
+        glDrawArrays(GL_TRIANGLES, 0, len(box_vertex_data))
 
         glfw.swap_buffers(window)
 
@@ -397,34 +528,22 @@ def perspective_from_intrinsics_infinite_depth(fx, fy, cx, cy, width, height, sh
     cx += shift_x
     cy += shift_y
 
-    proj[0, 0] = -2 * fx / width
-    proj[1, 1] = 2 * fy / height
-    proj[0, 2] = 1 - 2 * cx / width
-    proj[1, 2] = 2 * cy / height - 1
-    proj[2, 2] = -1  # limit of -(far + near)/(far - near) as far -> ∞
-    proj[2, 3] = -2 * near  # limit of -(2 * far * near)/(far - near) as far -> ∞
-    proj[3, 2] = -1
+    # diagnol
+    proj[0][0] = -2 * fx / width
+    proj[1][1] = 2 * fy / height
+    proj[2][2] = -1  # limit of -(far + near)/(far - near) as far -> ∞
+
+
+    proj[0][2] = 1 - 2 * cx / width
+    proj[1][2] = 2 * cy / height - 1
+    proj[3][2] = -1
+    proj[2][3] = -2 * near  # limit of -(2 * far * near)/(far - near) as far -> ∞
+
     return proj
 
 
 
-def save_mesh_to_obj(filename, vertices, indices, colors=None):
-    """
-    Saves a triangle mesh to a Wavefront OBJ file.
-    Supports vertex colors via MeshLab-style comments (non-standard).
-    """
-    with open(filename, 'w') as f:
-        for i, v in enumerate(vertices):
-            if colors is not None:
-                c = colors[i]
-                f.write(f"v {v[0]} {v[1]} {v[2]} {c[0]} {c[1]} {c[2]}\n")
-            else:
-                f.write(f"v {v[0]} {v[1]} {v[2]}\n")
 
-        for tri in indices:
-            # OBJ uses 1-based indexing
-            f.write(f"f {tri[0]+1} {tri[1]+1} {tri[2]+1}\n")
-    print(f"Saved OBJ to {filename}")
 
 # Run it all together
 if __name__ == "__main__":
@@ -447,4 +566,4 @@ if __name__ == "__main__":
 
     #render_mesh_to_image(verts, colors, tris, width, height, "images/left_small_normal.png")
     render_point_cloud_live(verts, colors, width, height)
-    save_mesh_to_obj("output_mesh.obj", verts, tris, colors)
+
