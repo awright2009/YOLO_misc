@@ -20,6 +20,13 @@ right   = [1, 0, 0]
 up 			= [0, 1, 0]
 forward = [0, 0, 1]
 
+
+rotate_angle = 0
+offset_x = 0.0
+offset_z = 0.0
+
+
+
 position = np.array([0.0, 0.0, 0.0], dtype=np.float32)  # X, Y, Z
 
 old_x = 0
@@ -361,6 +368,9 @@ def cursor_position_callback(window, xpos, ypos):
 
 def key_callback(window, key, scancode, action, mods):
     global position
+    global offset_x
+    global offset_z
+    global rotate_angle
 
     scale = 0.05
     if action in [glfw.PRESS, glfw.REPEAT]:
@@ -376,16 +386,67 @@ def key_callback(window, key, scancode, action, mods):
             position[2] += scale
         elif key == glfw.KEY_DOWN:
             position[2] -= scale
+        elif key == glfw.KEY_W:
+            offset_x += 0.125
+        elif key == glfw.KEY_S:
+            offset_x -= 0.125
+        elif key == glfw.KEY_A:
+            offset_z += 0.125
+        elif key == glfw.KEY_D:
+            offset_z -= 0.125
+        elif key == glfw.KEY_Q:
+            rotate_angle -= 5.0
+        elif key == glfw.KEY_E:
+            rotate_angle += 5.0
+            
 
-def render_point_cloud_live(vertices, colors, width, height):
+def transform_data(left_vertices, left_colors, right_vertices, right_colors):
+    global rotate_angle
+    global offset_x
+    # Define angle in radians
+    theta = np.radians(rotate_angle)  # 60 degrees -> radians
+
+
+    left_vertex_data = np.hstack([left_vertices, left_colors])
+   
+    
+    # Define angle in radians
+    theta = np.radians(rotate_angle)  # 60 degrees -> radians
+
+    # Rotation matrix around Y-axis
+    rotation_matrix = np.array([
+        [np.cos(theta), 0, np.sin(theta)],
+        [0, 1, 0],
+        [-np.sin(theta), 0, np.cos(theta)]
+    ])
+    
+    # Define your XYZ offset
+    offset = np.array([offset_x, 0.0, offset_z])  # Replace with your desired offset
+    
+    
+    transformed_points = right_vertices @ rotation_matrix.T + offset
+    transformed_points = transformed_points.astype(np.float32)
+
+    
+    right_vertex_data = np.hstack([transformed_points, right_colors])
+    return left_vertex_data, right_vertex_data
+
+
+def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_colors, width, height):
     global old_x
     global old_y
+
     window = init_opengl_context(width, height)
     
     glfw.set_mouse_button_callback(window, mouse_button_callback)
     glfw.set_cursor_pos_callback(window, cursor_position_callback)
     glfw.set_key_callback(window, key_callback)
-    vertex_data = np.hstack([vertices, colors])
+
+
+
+
+    left_vertex_data, right_vertex_data = transform_data(left_vertices, left_colors, right_vertices, right_colors)
+
 
     vertex_shader = """
     #version 330 core
@@ -426,12 +487,27 @@ def render_point_cloud_live(vertices, colors, width, height):
     glEnableVertexAttribArray(0)
     glEnableVertexAttribArray(1)
 
-    vbo = glGenBuffers(1)
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo)
+    left_vbo = glGenBuffers(1)
+
+    glBindBuffer(GL_ARRAY_BUFFER, left_vbo)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
-    glBufferData(GL_ARRAY_BUFFER, vertex_data.nbytes, vertex_data.astype(np.float32), GL_STATIC_DRAW)
+    glBufferData(GL_ARRAY_BUFFER, left_vertex_data.nbytes, left_vertex_data, GL_DYNAMIC_DRAW)
+
+
+    right_vbo = glGenBuffers(1)
+
+    glBindBuffer(GL_ARRAY_BUFFER, right_vbo)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
+    glBufferData(GL_ARRAY_BUFFER, right_vertex_data.nbytes, right_vertex_data, GL_DYNAMIC_DRAW)
+
+
+
+    last_offset_x = offset_x
+    last_rotate_angle = rotate_angle
+
 
     box_vertex_data = np.zeros(3 * 3 + 3 * 3)
 
@@ -465,9 +541,9 @@ def render_point_cloud_live(vertices, colors, width, height):
     glBindBuffer(GL_ARRAY_BUFFER, box_vbo)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
-    glBufferData(GL_ARRAY_BUFFER, box_vertex_data.nbytes, box_vertex_data.astype(np.float32), GL_STATIC_DRAW)
+    glBufferData(GL_ARRAY_BUFFER, box_vertex_data.nbytes, box_vertex_data, GL_STATIC_DRAW)
 
-    
+   
     
     # Define the orthographic projection with infinite depth
     left = -2
@@ -514,16 +590,40 @@ def render_point_cloud_live(vertices, colors, width, height):
         glfw.poll_events()
         glClearColor(0, 0, 0, 1)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        
+        
+        if offset_x != last_offset_x or rotate_angle != last_rotate_angle:
+	        left_vertex_data, right_vertex_data = transform_data(left_vertices, left_colors, right_vertices, right_colors)
+	        
+	        glBindBuffer(GL_ARRAY_BUFFER, left_vbo)
+	        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
+	        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
+	        glBufferData(GL_ARRAY_BUFFER, left_vertex_data.nbytes, left_vertex_data, GL_DYNAMIC_DRAW)
 
-        glBindBuffer(GL_ARRAY_BUFFER, vbo)
+	        glBindBuffer(GL_ARRAY_BUFFER, right_vbo)
+	        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
+	        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
+	        glBufferData(GL_ARRAY_BUFFER, right_vertex_data.nbytes, right_vertex_data, GL_DYNAMIC_DRAW)
+	        last_offset_x = offset_x
+	        last_rotate_angle = rotate_angle
+
+        
+        
+
+        glBindBuffer(GL_ARRAY_BUFFER, left_vbo)
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
-        glDrawArrays(GL_POINTS, 0, len(vertices))
+        glDrawArrays(GL_POINTS, 0, len(left_vertices))
 
-        glBindBuffer(GL_ARRAY_BUFFER, box_vbo)
+        glBindBuffer(GL_ARRAY_BUFFER, right_vbo)
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
-        glDrawArrays(GL_TRIANGLES, 0, len(box_vertex_data))
+        glDrawArrays(GL_POINTS, 0, len(right_vertices))
+
+#        glBindBuffer(GL_ARRAY_BUFFER, box_vbo)
+#        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
+#        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
+#        glDrawArrays(GL_TRIANGLES, 0, len(box_vertex_data))
 
         glfw.swap_buffers(window)
 
@@ -555,16 +655,19 @@ def perspective_from_intrinsics_infinite_depth(fx, fy, cx, cy, width, height, sh
 # Run it all together
 if __name__ == "__main__":
     numpy.set_printoptions(threshold=sys.maxsize)
-    depth_img = load_depth_image("images/left.png", max_depth=1)
-    rgb_img = cv2.cvtColor(cv2.imread("images/left.JPG"), cv2.COLOR_BGR2RGB)
-    
+    left_depth_img = load_depth_image("images/left.png", max_depth=1)
+    left_rgb_img = cv2.cvtColor(cv2.imread("images/left.JPG"), cv2.COLOR_BGR2RGB)
+
+    right_depth_img = load_depth_image("images/right.png", max_depth=1)
+    right_rgb_img = cv2.cvtColor(cv2.imread("images/right.JPG"), cv2.COLOR_BGR2RGB)
    
 
-    height, width = depth_img.shape[:2]
+    height, width = left_depth_img.shape[:2]
 
     intrinsics = {'fx': width, 'fy': height, 'cx': height / 2.0, 'cy': width / 2.0}
 
-    verts, colors, tris = depth_to_mesh(depth_img, intrinsics, rgb_img)
+    left_verts, left_colors, tris = depth_to_mesh(left_depth_img, intrinsics, left_rgb_img)
+    right_verts, right_colors, tris = depth_to_mesh(right_depth_img, intrinsics, right_rgb_img)
 
-    render_point_cloud_live(verts, colors, width, height)
+    render_point_cloud_live(left_verts, left_colors, right_verts, right_colors, width, height)
 
