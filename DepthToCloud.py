@@ -433,40 +433,71 @@ def render_point_cloud_live(vertices, colors, width, height):
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
     glBufferData(GL_ARRAY_BUFFER, vertex_data.nbytes, vertex_data.astype(np.float32), GL_STATIC_DRAW)
 
-    box_vertex_data = np.zeros(3 * 3 + 3 * 3)
+    box_vertex_data = np.zeros(6 * 3 + 6 * 3)
 
-    box_vertex_data[0] = -0.1
-    box_vertex_data[1] = -0.1
-    box_vertex_data[2] = -0.1
+		# triangle 1
+    box_vertex_data[0] = 0.0
+    box_vertex_data[1] = -0.05
+    box_vertex_data[2] = -0.5
 
-    box_vertex_data[3] = random.uniform(0, 1)
-    box_vertex_data[4] = random.uniform(0, 1)
-    box_vertex_data[5] = random.uniform(0, 1)
+    box_vertex_data[3] = 1.0
+    box_vertex_data[4] = 0.0
+    box_vertex_data[5] = 0.0
 
-    box_vertex_data[6] = 0.1
-    box_vertex_data[7] = -0.1
-    box_vertex_data[8] = -0.1
+    box_vertex_data[6] = 0.06
+    box_vertex_data[7] = -0.05
+    box_vertex_data[8] = -0.5
 
-    box_vertex_data[9]  = random.uniform(0, 1)
-    box_vertex_data[10] = random.uniform(0, 1)
-    box_vertex_data[11] = random.uniform(0, 1)
+    box_vertex_data[9]  = 1.0
+    box_vertex_data[10] = 0.0
+    box_vertex_data[11] = 0.0
 
 
-    box_vertex_data[12] = 0.1
-    box_vertex_data[13] = 0.1
-    box_vertex_data[14] = -0.1
+    box_vertex_data[12] = 0.06
+    box_vertex_data[13] = 0.05
+    box_vertex_data[14] = -0.5
 
-    box_vertex_data[15] = random.uniform(0, 1)
-    box_vertex_data[16] = random.uniform(0, 1)
-    box_vertex_data[17] = random.uniform(0, 1)
+    box_vertex_data[15] = 1.0
+    box_vertex_data[16] = 0.0
+    box_vertex_data[17] = 0.0
+    
+    # triangle 2
+    box_vertex_data[18] = 0.06
+    box_vertex_data[19] = 0.05
+    box_vertex_data[20] = -0.5
 
+    box_vertex_data[21] = 1.0
+    box_vertex_data[22] = 0.0
+    box_vertex_data[23] = 0.0
+
+    box_vertex_data[24] = 0.0
+    box_vertex_data[25] = 0.05
+    box_vertex_data[26] = -0.5
+
+    box_vertex_data[27] = 1.0
+    box_vertex_data[28] = 0.0
+    box_vertex_data[29] = 0.0
+
+
+    box_vertex_data[30] = 0.0
+    box_vertex_data[31] = -0.05
+    box_vertex_data[32] = -0.5
+
+    box_vertex_data[33] = 1.0
+    box_vertex_data[34] = 0.0
+    box_vertex_data[35] = 0.0
+    
+
+    box_vertex_data = box_vertex_data.astype(np.float32)
 
     box_vbo = glGenBuffers(1)
     glBindBuffer(GL_ARRAY_BUFFER, box_vbo)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
-    glBufferData(GL_ARRAY_BUFFER, box_vertex_data.nbytes, box_vertex_data.astype(np.float32), GL_STATIC_DRAW)
+    glBufferData(GL_ARRAY_BUFFER, box_vertex_data.nbytes, box_vertex_data, GL_STATIC_DRAW)
 
+
+    glBlendFunc(GL_ONE, GL_ONE)
     
     
     # Define the orthographic projection with infinite depth
@@ -520,10 +551,13 @@ def render_point_cloud_live(vertices, colors, width, height):
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
         glDrawArrays(GL_POINTS, 0, len(vertices))
 
+        glEnable(GL_BLEND)
+        
         glBindBuffer(GL_ARRAY_BUFFER, box_vbo)
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
         glDrawArrays(GL_TRIANGLES, 0, len(box_vertex_data))
+        glDisable(GL_BLEND)
 
         glfw.swap_buffers(window)
 
