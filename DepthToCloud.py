@@ -411,7 +411,7 @@ def render_point_cloud_live(vertices, colors, width, height):
 
     # Use the modified infinite depth orthographic projection
     #proj = orthographic_projection_infinite_depth(left, right, bottom, top, near)
-    proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, 0, 0)
+    proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, int(sys.argv[3]), int(sys.argv[4]))
     #proj = perspective(fovy=36.87, aspect=2.0, z_near=0.1, z_far=1000.0, infinite=True)
 
     delta_x = yaw - old_x
@@ -531,17 +531,20 @@ def perspective_from_intrinsics_infinite_depth(fx, fy, cx, cy, width, height, sh
 
 if __name__ == "__main__":
 
-    if len(sys.argv) < 3:
-        print("Usage python DepthToCloud.py <rgb_file> <depth_file> <aabb_file>\n")
-        exit()
+    if len(sys.argv) < 5:
+        print("Usage python DepthToCloud.py <rgb_file> <depth_file> <x_shift> <y_shift> [aabb_file]\n")
+        quit()
 
     print(f"RGB Image {sys.argv[1]} Depth Image {sys.argv[2]}")
+    print(f"Pixel shifting by {sys.argv[3]} and {sys.argv[4]}")
+
     rgb_img = cv2.cvtColor( cv2.imread(sys.argv[1]), cv2.COLOR_BGR2RGB)
     depth_img = load_depth_image(sys.argv[2], max_depth=1)
 
 
-    if len(sys.argv) == 4:
-        data = parse_file(sys.argv[3])
+    if len(sys.argv) == 6:
+        print(f"Loading boxes from {sys.argv[5]}")
+        data = parse_file(sys.argv[5])
     else:
         data = np.zeros(0)
    
