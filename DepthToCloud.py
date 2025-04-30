@@ -26,6 +26,8 @@ old_y = 0
 
 data = []
 
+metric = 0
+
 def load_depth_image(path, max_depth=1.0):
     """
     Loads a depth image and scales it to real-world depth in meters.
@@ -58,7 +60,11 @@ def transform_point(point, height, width, intrinsics):
 
     depth = point[2]
 
-    z = -1 / depth
+
+    if metric:
+        z = -depth - 0.5
+    else:
+        z = -1 / depth
 
     x = (point[0] - cx) * z / fx
     y = (point[1] - cy) * z / fy
@@ -67,6 +73,7 @@ def transform_point(point, height, width, intrinsics):
 
 
 def transform_points_numpy(depth, intrinsics):
+    global metrix
     h, w = depth.shape[:2]
 
     fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
@@ -78,7 +85,10 @@ def transform_points_numpy(depth, intrinsics):
     
     
     # Kinect is Z = 1.0 / (raw_depth * -0.0030711016 + 3.3309495161)
-    z = -1 / depth
+    if metric:
+        z = -depth - 0.5
+    else:
+        z = -1 / depth
 
     x = (i - cx) * z / fx
     y = (j - cy) * z / fy
@@ -539,6 +549,10 @@ if __name__ == "__main__":
     print(f"Pixel shifting by {sys.argv[3]} and {sys.argv[4]}")
 
     rgb_img = cv2.cvtColor( cv2.imread(sys.argv[1]), cv2.COLOR_BGR2RGB)
+    
+    if "metric" in sys.argv[2]:
+        metric = 1
+    
     depth_img = load_depth_image(sys.argv[2], max_depth=1)
 
 
