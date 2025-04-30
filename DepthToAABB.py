@@ -5,7 +5,7 @@ import random
 
 
 
-def load_depth_image(path, max_depth=5.0):
+def load_depth_image(path, max_depth=1.0):
     """
     Loads a depth image and scales it to real-world depth in meters.
     Supports both 8-bit (0–255) and 16-bit (0–65535) grayscale images.

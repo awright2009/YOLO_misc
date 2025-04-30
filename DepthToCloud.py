@@ -1,13 +1,13 @@
 import numpy as np
 import cv2
-from PIL import Image
+
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
 import glfw
 
 import sys
 import math
-import random
+
 import re
 
 
@@ -16,7 +16,6 @@ yaw, pitch = 0.0, 0.0
 left_mouse_pressed = False
 
 
-right   = [1, 0, 0]
 up 			= [0, 1, 0]
 forward = [0, 0, 1]
 
@@ -27,7 +26,7 @@ old_y = 0
 
 data = []
 
-def load_depth_image(path, max_depth=5.0):
+def load_depth_image(path, max_depth=1.0):
     """
     Loads a depth image and scales it to real-world depth in meters.
     Supports both 8-bit (0–255) and 16-bit (0–65535) grayscale images.
@@ -165,7 +164,7 @@ def rotate_vector(rad, vec, axis):
 def view_matrix(yaw_deg, pitch_deg,  pos):
     global forward
     global up
-    global right
+
     yaw_rad = np.radians(yaw_deg)
     pitch_rad = np.radians(pitch_deg)
     scale = 50.0
@@ -213,6 +212,25 @@ def view_matrix(yaw_deg, pitch_deg,  pos):
     #print(view)
     return view
     
+def perspective(fovy, aspect, z_near, z_far, infinite=False):
+    radians = math.radians(fovy / 2)
+    cotangent = math.cos(radians) / math.sin(radians)
+    delta_z = z_far - z_near
+    epsilon = 0.001
+
+    m = np.zeros((4, 4), dtype=np.float32)
+
+    m[0, 0] = cotangent / aspect
+    m[1, 1] = cotangent
+    m[2, 2] = -(z_far + z_near) / delta_z
+    m[2, 3] = -1.0
+    m[3, 2] = -2 * z_near * z_far / delta_z
+
+    if infinite:
+        m[2, 2] = epsilon - 1.0
+        m[3, 2] = z_near * (epsilon - 2.0)
+
+    return m
 
 def mouse_button_callback(window, button, action, mods):
     global left_mouse_pressed
@@ -233,21 +251,25 @@ def cursor_position_callback(window, xpos, ypos):
 
 def key_callback(window, key, scancode, action, mods):
     global position
+    global up
+    global forward
+
+    right = cross_product(up, forward)
 
     scale = 0.05
     if action in [glfw.PRESS, glfw.REPEAT]:
         if key == glfw.KEY_LEFT:
-            position[0] -= scale
+            position -= [item * scale for item in right]
         elif key == glfw.KEY_RIGHT:
-            position[0] += scale
+            position += [item * scale for item in right]
         elif key == glfw.KEY_ENTER:
-            position[1] -= scale
+            position -= [item * scale for item in up]
         elif key == glfw.KEY_LEFT_SHIFT or key == glfw.KEY_RIGHT_SHIFT:
-            position[1] += scale
+            position += [item * scale for item in up]
         elif key == glfw.KEY_UP:
-            position[2] += scale
+            position += [item * scale for item in forward]
         elif key == glfw.KEY_DOWN:
-            position[2] -= scale
+            position -= [item * scale for item in forward]
 
 
     
@@ -384,7 +406,7 @@ def render_point_cloud_live(vertices, colors, width, height):
     # Use the modified infinite depth orthographic projection
     #proj = orthographic_projection_infinite_depth(left, right, bottom, top, near)
     proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, -250, 250)
-
+    #proj = perspective(fovy=36.87, aspect=2.0, z_near=0.1, z_far=1000.0, infinite=True)
 
     delta_x = yaw - old_x
     delta_y = (pitch - old_y)
@@ -502,12 +524,20 @@ def perspective_from_intrinsics_infinite_depth(fx, fy, cx, cy, width, height, sh
 
 
 if __name__ == "__main__":
-    np.set_printoptions(threshold=sys.maxsize)
-    depth_img = load_depth_image("images/left.png", max_depth=1)
-    rgb_img = cv2.cvtColor(cv2.imread("images/left.JPG"), cv2.COLOR_BGR2RGB)
-    
-    
-    data = parse_file("object_depth.txt")
+
+    if len(sys.argv) < 3:
+        print("Usage python DepthToCloud.py <rgb_file> <depth_file> <aabb_file>\n")
+        exit()
+
+    print(f"RGB Image {sys.argv[1]} Depth Image {sys.argv[2]}")
+    rgb_img = cv2.cvtColor( cv2.imread(sys.argv[1]), cv2.COLOR_BGR2RGB)
+    depth_img = load_depth_image(sys.argv[2], max_depth=1)
+
+
+    if len(sys.argv) == 4:
+        data = parse_file(sys.argv[3])
+    else:
+        data = np.zeros(0)
    
 
     height, width = depth_img.shape[:2]
