@@ -328,7 +328,7 @@ def generate_aabb(data_items, height, width, intrinsics):
 def render_point_cloud_live(vertices, colors, width, height):
     global old_x
     global old_y
-    window = init_opengl_context(width, height)
+    window = init_opengl_context(1920, 1080)
     
     glfw.set_mouse_button_callback(window, mouse_button_callback)
     glfw.set_cursor_pos_callback(window, cursor_position_callback)
@@ -405,7 +405,7 @@ def render_point_cloud_live(vertices, colors, width, height):
 
     # Use the modified infinite depth orthographic projection
     #proj = orthographic_projection_infinite_depth(left, right, bottom, top, near)
-    proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, -250, 250)
+    proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, -500, 500)
     #proj = perspective(fovy=36.87, aspect=2.0, z_near=0.1, z_far=1000.0, infinite=True)
 
     delta_x = yaw - old_x
