@@ -6,9 +6,9 @@ from OpenGL.GL.shaders import compileProgram, compileShader
 import glfw
 
 import sys
-import numpy
 import math
 import random
+import re
 
 
 last_x, last_y = 0, 0
@@ -24,6 +24,8 @@ position = np.array([0.0, 0.0, 0.0], dtype=np.float32)  # X, Y, Z
 
 old_x = 0
 old_y = 0
+
+data = []
 
 def load_depth_image(path, max_depth=5.0):
     """
@@ -49,13 +51,27 @@ def load_depth_image(path, max_depth=5.0):
         raise ValueError(f"Unsupported depth image format: {depth_img.dtype}")
 
 
-def depth_to_mesh(depth, intrinsics, rgb_img=None):
+def transform_point(point, height, width, intrinsics):
+    h = height
+    w = width
+
+    fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
+
+    z = -1 / point[2]
+
+    x = (point[0] - cx) * z / fx
+    y = (point[1] - cy) * z / fy
+
+    return [x, y, z]
+
+
+def transform_points_numpy(depth, intrinsics):
     h, w = depth.shape[:2]
-    
+
     fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
 
     i, j = np.indices((h, w), dtype=np.int16)
-    
+
     # prevent divide by zero, zero means far away
     depth[depth == 0] = 1
     z = -1 / depth
@@ -63,6 +79,12 @@ def depth_to_mesh(depth, intrinsics, rgb_img=None):
     x = (j - cx) * z / fx
     y = (i - cy) * z / fy
     vertices = np.stack((x, y, z), axis=-1).reshape(-1, 3)
+
+    return vertices
+
+def depth_to_mesh(depth, intrinsics, rgb_img=None):
+
+    vertices = transform_points_numpy(depth, intrinsics)
 
     if rgb_img is not None:
         colors = rgb_img.reshape(-1, 3).astype(np.float32) / 255.0
@@ -88,160 +110,10 @@ def init_opengl_context(width, height):
     glfw.make_context_current(window)
     return window
 
-def render_mesh_to_image(vertices, colors, indices, width, height, output_path):
-    window = init_opengl_context(width, height)
-
-    vertex_shader = """
-    #version 330 core
-    layout(location = 0) in vec3 aPos;
-    layout(location = 1) in vec3 aColor;
-
-    uniform mat4 projection;
-    uniform mat4 view;
-
-    out vec3 vColor;
-
-    void main() {
-        gl_Position = view * projection *  * vec4(aPos, 1.0);
-        vColor = aColor;
-    }
-    """
-    fragment_shader = """
-    #version 330 core
-    in vec3 vColor;
-    out vec4 FragColor;
-    void main() {
-        FragColor = vec4(vColor, 1.0);
-    }
-    """
-    shader = compileProgram(
-        compileShader(vertex_shader, GL_VERTEX_SHADER),
-        compileShader(fragment_shader, GL_FRAGMENT_SHADER)
-    )
-
-    glPointSize(2.0)  # or larger, depending on resolution
-
-    vao = glGenVertexArrays(1)
-    glBindVertexArray(vao)
-
-    vbo = glGenBuffers(1)
-    vertex_data = np.hstack([vertices, colors])
-    glBindBuffer(GL_ARRAY_BUFFER, vbo)
-    glBufferData(GL_ARRAY_BUFFER, vertex_data.nbytes, vertex_data, GL_STATIC_DRAW)
-
-    #ebo = glGenBuffers(1)
-    #glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
-    #glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_STATIC_DRAW)
-
-    # Layout
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
-    glEnableVertexAttribArray(0)
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
-    glEnableVertexAttribArray(1)
-
-    # Offscreen buffer
-    fbo = glGenFramebuffers(1)
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo)
-
-    texture = glGenTextures(1)
-    glBindTexture(GL_TEXTURE_2D, texture)
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, None)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0)
-
-    if glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE:
-        raise Exception("Framebuffer not complete")
-
-    # Upload projection/view matrices
-    proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, 250, 250)
-    view = identity_view()
-
-
-
-    # Draw
-    glViewport(0, 0, width, height)
-    glClearColor(1, 1, 1, 1)
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-    glUseProgram(shader)
-    glBindVertexArray(vao)
-
-    proj_loc = glGetUniformLocation(shader, "projection")
-    view_loc = glGetUniformLocation(shader, "view")
-
-    glUniformMatrix4fv(proj_loc, 1, GL_TRUE, proj)
-    glUniformMatrix4fv(view_loc, 1, GL_TRUE, view)
-
-
-    glDrawArrays(GL_POINTS, 0, len(vertices))
-
-    # Read pixels
-    data = glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE)
-    image = np.frombuffer(data, dtype=np.uint8).reshape((height, width, 3))
-    image = np.flip(image, axis=0)  # flip vertically
-    image = np.flip(image, axis=1)  # flip horizontally
-    Image.fromarray(image).save(output_path)
-    print(f"Saved: {output_path}")
-
-    glfw.terminate()
-
 
 def identity_view():
     return np.eye(4, dtype=np.float32)
 
-
-def orthographic_projection(left, right, bottom, top, near, far):
-    proj = np.zeros((4, 4), dtype=np.float32)
-
-    proj[0, 0] = 2.0 / (right - left)
-    proj[1, 1] = 2.0 / (top - bottom)
-    proj[2, 2] = -2.0 / (far - near)
-    proj[0, 3] = -(right + left) / (right - left)
-    proj[1, 3] = -(top + bottom) / (top - bottom)
-    proj[2, 3] = -(far + near) / (far - near)
-    proj[3, 3] = 1.0
-
-    return proj
-
-
-def orthographic_projection_infinite_depth(left, right, bottom, top, near):
-    proj = np.zeros((4, 4), dtype=np.float32)
-
-    proj[0, 0] = 2.0 / (right - left)  # Scale X
-    proj[1, 1] = 2.0 / (top - bottom)  # Scale Y
-    proj[2, 2] = -1.0  # Use -1 for infinite depth, no scaling on Z axis
-    proj[0, 3] = -(right + left) / (right - left)  # Translate X
-    proj[1, 3] = -(top + bottom) / (top - bottom)  # Translate Y
-    proj[2, 3] = -(2.0 * near)  # Adjust Z to account for near plane
-    proj[3, 3] = 1.0  # Homogeneous coordinate
-
-    return proj
-
-
-def orbit_view_matrix(yaw, pitch):
-    # Identity matrix
-    view = np.eye(4, dtype=np.float32)
-
-    # Apply yaw (rotation around Y-axis) - Rotate around vertical axis (up)
-    yaw_matrix = np.array([
-        [np.cos(yaw), 0, np.sin(yaw), 0],
-        [0, 1, 0, 0],
-        [-np.sin(yaw), 0, np.cos(yaw), 0],
-        [0, 0, 0, 1]
-    ], dtype=np.float32)
-
-    # Apply pitch (rotation around X-axis) - Rotate around horizontal axis
-    pitch_matrix = np.array([
-        [1, 0, 0, 0],
-        [0, np.cos(pitch), -np.sin(pitch), 0],
-        [0, np.sin(pitch), np.cos(pitch), 0],
-        [0, 0, 0, 1]
-    ], dtype=np.float32)
-
-    # Combine yaw and pitch rotations
-    view = np.dot(view, yaw_matrix)
-    view = np.dot(view, pitch_matrix)
-
-    return view
 
 def dot_product(VecA, VecB):
     return VecA[0] * VecB[0] + VecA[1] * VecB[1] + VecA[2] * VecB[2]
@@ -377,6 +249,60 @@ def key_callback(window, key, scancode, action, mods):
         elif key == glfw.KEY_DOWN:
             position[2] -= scale
 
+
+    
+    
+def triangles_from_aabb_with_color(aabb, color):
+    cube_triangles = [
+        [0, 4, 5], [0, 5, 1],
+        [2, 3, 7], [2, 7, 6],
+        [0, 1, 3], [0, 3, 2],
+        [4, 6, 7], [4, 7, 5],
+        [0, 2, 6], [0, 6, 4],
+        [1, 5, 7], [1, 7, 3]
+    ]
+
+    triangle_vertices = []
+
+    for tri in cube_triangles:
+        for idx in tri:
+            vertex = aabb[idx]
+            triangle_vertices.extend([vertex[0], vertex[1], vertex[2], color[0], color[1], color[2] ] )
+    return triangle_vertices
+    
+
+
+def make_aabb(min_xyz, max_xyz):
+    min_x, min_y, min_z = min_xyz
+    max_x, max_y, max_z = max_xyz
+
+    aabb = [
+        [min_x, min_y, min_z],  # i = 0b000
+        [min_x, min_y, max_z],  # i = 0b001
+        [min_x, max_y, min_z],  # i = 0b010
+        [min_x, max_y, max_z],  # i = 0b011
+        [max_x, min_y, min_z],  # i = 0b100
+        [max_x, min_y, max_z],  # i = 0b101
+        [max_x, max_y, min_z],  # i = 0b110
+        [max_x, max_y, max_z],  # i = 0b111
+    ]
+        
+    return aabb
+
+def generate_aabb(data_items, height, width, intrinsics):
+    all_triangles = []
+    for item in data_items:
+        min_point = transform_point(item['min_xyz'], height, width, intrinsics)
+        max_point = transform_point(item['max_xyz'], height, width, intrinsics)
+        aabb = make_aabb(min_point, max_point)
+        tri_data = triangles_from_aabb_with_color(aabb, item['color'])
+        all_triangles.append(tri_data)
+        
+    if not all_triangles:
+        return np.array([], dtype=np.float32)
+
+    return np.concatenate(all_triangles, axis=0)
+
 def render_point_cloud_live(vertices, colors, width, height):
     global old_x
     global old_y
@@ -433,63 +359,11 @@ def render_point_cloud_live(vertices, colors, width, height):
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
     glBufferData(GL_ARRAY_BUFFER, vertex_data.nbytes, vertex_data.astype(np.float32), GL_STATIC_DRAW)
 
-    box_vertex_data = np.zeros(6 * 3 + 6 * 3)
-
-		# triangle 1
-    box_vertex_data[0] = 0.0
-    box_vertex_data[1] = -0.05
-    box_vertex_data[2] = -0.5
-
-    box_vertex_data[3] = 1.0
-    box_vertex_data[4] = 0.0
-    box_vertex_data[5] = 0.0
-
-    box_vertex_data[6] = 0.06
-    box_vertex_data[7] = -0.05
-    box_vertex_data[8] = -0.5
-
-    box_vertex_data[9]  = 1.0
-    box_vertex_data[10] = 0.0
-    box_vertex_data[11] = 0.0
 
 
-    box_vertex_data[12] = 0.06
-    box_vertex_data[13] = 0.05
-    box_vertex_data[14] = -0.5
-
-    box_vertex_data[15] = 1.0
-    box_vertex_data[16] = 0.0
-    box_vertex_data[17] = 0.0
-    
-    # triangle 2
-    box_vertex_data[18] = 0.06
-    box_vertex_data[19] = 0.05
-    box_vertex_data[20] = -0.5
-
-    box_vertex_data[21] = 1.0
-    box_vertex_data[22] = 0.0
-    box_vertex_data[23] = 0.0
-
-    box_vertex_data[24] = 0.0
-    box_vertex_data[25] = 0.05
-    box_vertex_data[26] = -0.5
-
-    box_vertex_data[27] = 1.0
-    box_vertex_data[28] = 0.0
-    box_vertex_data[29] = 0.0
-
-
-    box_vertex_data[30] = 0.0
-    box_vertex_data[31] = -0.05
-    box_vertex_data[32] = -0.5
-
-    box_vertex_data[33] = 1.0
-    box_vertex_data[34] = 0.0
-    box_vertex_data[35] = 0.0
-    
-
+    box_vertex_data = generate_aabb(data, height, width, intrinsics)
     box_vertex_data = box_vertex_data.astype(np.float32)
-
+    
     box_vbo = glGenBuffers(1)
     glBindBuffer(GL_ARRAY_BUFFER, box_vbo)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
@@ -562,6 +436,49 @@ def render_point_cloud_live(vertices, colors, width, height):
         glfw.swap_buffers(window)
 
     glfw.terminate()
+    
+    
+    
+def parse_file(filepath):
+    with open(filepath, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Match using regular expressions
+            match = re.match(
+                r'(\S+)\s+\[([^\]]+)\]\s+\[([^\]]+)\]',
+                line
+            )
+            if not match:
+                print(f"Line skipped (invalid format): {line}")
+                continue
+
+            filename = match.group(1)
+            bbox_str = match.group(2)
+            color_str = match.group(3)
+
+            try:
+                # Split bounding box into two 3D points
+                bbox_parts = bbox_str.split(',')
+                min_xyz = list(map(float, bbox_parts[0].strip().split()))
+                max_xyz = list(map(float, bbox_parts[1].strip().split()))
+
+                # Split RGB color
+                rgb = list(map(float, color_str.strip().split()))
+
+                data.append({
+                    'filename': filename,
+                    'min_xyz': min_xyz,
+                    'max_xyz': max_xyz,
+                    'color': rgb
+                })
+            except Exception as e:
+                print(f"Error parsing line: {line}\n{e}")
+
+    return data
+
 
 def perspective_from_intrinsics_infinite_depth(fx, fy, cx, cy, width, height, shift_x, shift_y, near=0.1):
     proj = np.zeros((4, 4), dtype=np.float32)
@@ -584,14 +501,13 @@ def perspective_from_intrinsics_infinite_depth(fx, fy, cx, cy, width, height, sh
 
 
 
-
-
-# Run it all together
 if __name__ == "__main__":
-    numpy.set_printoptions(threshold=sys.maxsize)
+    np.set_printoptions(threshold=sys.maxsize)
     depth_img = load_depth_image("images/left.png", max_depth=1)
     rgb_img = cv2.cvtColor(cv2.imread("images/left.JPG"), cv2.COLOR_BGR2RGB)
     
+    
+    data = parse_file("object_depth.txt")
    
 
     height, width = depth_img.shape[:2]
