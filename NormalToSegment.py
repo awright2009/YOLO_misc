@@ -1,7 +1,9 @@
 import numpy as np
 from scipy.ndimage import label
+from PIL import Image
+import sys
 
-def group_normals(normal_map, angle_tolerance_degrees=10, connectivity=4):
+def group_normals(normal_map, angle_tolerance_degrees=5, connectivity=4):
     """
     Groups similar normals in the normal_map that are both directionally similar
     and spatially connected. Returns a labeled image where each region has a unique label.
@@ -90,16 +92,21 @@ def labels_to_color_image(labels, seed=42):
 
     return color_image
 
-from PIL import Image
-normal_map_img = np.array(Image.open("images/right_small_normal.png")).astype(np.float32) / 255.0
-labels = group_normals(normal_map_img, angle_tolerance_degrees=15)
+
+if len(sys.argv) < 3:
+    print("Usage NormalToSegment.py <file> <tolerance in degrees>\n")
+    quit()
+
+normal_map_img = np.array(Image.open(sys.argv[1])).astype(np.float32) / 255.0
+labels = group_normals(normal_map_img, angle_tolerance_degrees=float(sys.argv[2]))
 
 # Generate color image
 color_labels_img = labels_to_color_image(labels)
 
 # Save or display
-from PIL import Image
-Image.fromarray(color_labels_img).save("right_segmented_labels.png")
+filename = sys.argv[1] + "_segmented_labels.png"
+
+Image.fromarray(color_labels_img).save(filename)
 
 # Optional: view inline with matplotlib
 #import matplotlib.pyplot as plt

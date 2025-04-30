@@ -16,7 +16,6 @@ yaw, pitch = 0.0, 0.0
 left_mouse_pressed = False
 
 
-right   = [1, 0, 0]
 up 			= [0, 1, 0]
 forward = [0, 0, 1]
 
@@ -24,7 +23,7 @@ forward = [0, 0, 1]
 rotate_angle = 0
 offset_x = 0.0
 offset_z = 0.0
-
+z_scale = 1.0
 
 
 position = np.array([0.0, 0.0, 0.0], dtype=np.float32)  # X, Y, Z
@@ -32,7 +31,9 @@ position = np.array([0.0, 0.0, 0.0], dtype=np.float32)  # X, Y, Z
 old_x = 0
 old_y = 0
 
-def load_depth_image(path, max_depth=5.0):
+data = []
+
+def load_depth_image(path, max_depth=1.0):
     """
     Loads a depth image and scales it to real-world depth in meters.
     Supports both 8-bit (0–255) and 16-bit (0–65535) grayscale images.
@@ -56,20 +57,40 @@ def load_depth_image(path, max_depth=5.0):
         raise ValueError(f"Unsupported depth image format: {depth_img.dtype}")
 
 
-def depth_to_mesh(depth, intrinsics, rgb_img=None):
-    h, w = depth.shape[:2]
-    
+def transform_point(point, height, width, intrinsics):
+    h = height
+    w = width
+
     fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
 
-    i, j = np.indices((h, w), dtype=np.int16)
-    
+    z = (-1 / point[2]) * z_scale
+
+    x = (point[0] - cx) * z / fx
+    y = (point[1] - cy) * z / fy
+
+    return [x, y, z]
+
+
+def transform_points_numpy(depth, intrinsics):
+    h, w = depth.shape[:2]
+
+    fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
+
+    j, i = np.indices((h, w), dtype=np.int16)
+
     # prevent divide by zero, zero means far away
     depth[depth == 0] = 1
-    z = -1 / depth
+    z = (-1 / depth) * z_scale
 
-    x = (j - cx) * z / fx
-    y = (i - cy) * z / fy
+    x = (i - cx) * z / fx
+    y = (j - cy) * z / fy
     vertices = np.stack((x, y, z), axis=-1).reshape(-1, 3)
+
+    return vertices
+
+def depth_to_mesh(depth, intrinsics, rgb_img=None):
+
+    vertices = transform_points_numpy(depth, intrinsics)
 
     if rgb_img is not None:
         colors = rgb_img.reshape(-1, 3).astype(np.float32) / 255.0
@@ -95,160 +116,10 @@ def init_opengl_context(width, height):
     glfw.make_context_current(window)
     return window
 
-def render_mesh_to_image(vertices, colors, indices, width, height, output_path):
-    window = init_opengl_context(width, height)
-
-    vertex_shader = """
-    #version 330 core
-    layout(location = 0) in vec3 aPos;
-    layout(location = 1) in vec3 aColor;
-
-    uniform mat4 projection;
-    uniform mat4 view;
-
-    out vec3 vColor;
-
-    void main() {
-        gl_Position = view * projection *  * vec4(aPos, 1.0);
-        vColor = aColor;
-    }
-    """
-    fragment_shader = """
-    #version 330 core
-    in vec3 vColor;
-    out vec4 FragColor;
-    void main() {
-        FragColor = vec4(vColor, 1.0);
-    }
-    """
-    shader = compileProgram(
-        compileShader(vertex_shader, GL_VERTEX_SHADER),
-        compileShader(fragment_shader, GL_FRAGMENT_SHADER)
-    )
-
-    glPointSize(2.0)  # or larger, depending on resolution
-
-    vao = glGenVertexArrays(1)
-    glBindVertexArray(vao)
-
-    vbo = glGenBuffers(1)
-    vertex_data = np.hstack([vertices, colors])
-    glBindBuffer(GL_ARRAY_BUFFER, vbo)
-    glBufferData(GL_ARRAY_BUFFER, vertex_data.nbytes, vertex_data, GL_STATIC_DRAW)
-
-    #ebo = glGenBuffers(1)
-    #glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
-    #glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_STATIC_DRAW)
-
-    # Layout
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
-    glEnableVertexAttribArray(0)
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
-    glEnableVertexAttribArray(1)
-
-    # Offscreen buffer
-    fbo = glGenFramebuffers(1)
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo)
-
-    texture = glGenTextures(1)
-    glBindTexture(GL_TEXTURE_2D, texture)
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, None)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0)
-
-    if glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE:
-        raise Exception("Framebuffer not complete")
-
-    # Upload projection/view matrices
-    proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, 250, 250)
-    view = identity_view()
-
-
-
-    # Draw
-    glViewport(0, 0, width, height)
-    glClearColor(1, 1, 1, 1)
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-    glUseProgram(shader)
-    glBindVertexArray(vao)
-
-    proj_loc = glGetUniformLocation(shader, "projection")
-    view_loc = glGetUniformLocation(shader, "view")
-
-    glUniformMatrix4fv(proj_loc, 1, GL_TRUE, proj)
-    glUniformMatrix4fv(view_loc, 1, GL_TRUE, view)
-
-
-    glDrawArrays(GL_POINTS, 0, len(vertices))
-
-    # Read pixels
-    data = glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE)
-    image = np.frombuffer(data, dtype=np.uint8).reshape((height, width, 3))
-    image = np.flip(image, axis=0)  # flip vertically
-    image = np.flip(image, axis=1)  # flip horizontally
-    Image.fromarray(image).save(output_path)
-    print(f"Saved: {output_path}")
-
-    glfw.terminate()
-
 
 def identity_view():
     return np.eye(4, dtype=np.float32)
 
-
-def orthographic_projection(left, right, bottom, top, near, far):
-    proj = np.zeros((4, 4), dtype=np.float32)
-
-    proj[0, 0] = 2.0 / (right - left)
-    proj[1, 1] = 2.0 / (top - bottom)
-    proj[2, 2] = -2.0 / (far - near)
-    proj[0, 3] = -(right + left) / (right - left)
-    proj[1, 3] = -(top + bottom) / (top - bottom)
-    proj[2, 3] = -(far + near) / (far - near)
-    proj[3, 3] = 1.0
-
-    return proj
-
-
-def orthographic_projection_infinite_depth(left, right, bottom, top, near):
-    proj = np.zeros((4, 4), dtype=np.float32)
-
-    proj[0, 0] = 2.0 / (right - left)  # Scale X
-    proj[1, 1] = 2.0 / (top - bottom)  # Scale Y
-    proj[2, 2] = -1.0  # Use -1 for infinite depth, no scaling on Z axis
-    proj[0, 3] = -(right + left) / (right - left)  # Translate X
-    proj[1, 3] = -(top + bottom) / (top - bottom)  # Translate Y
-    proj[2, 3] = -(2.0 * near)  # Adjust Z to account for near plane
-    proj[3, 3] = 1.0  # Homogeneous coordinate
-
-    return proj
-
-
-def orbit_view_matrix(yaw, pitch):
-    # Identity matrix
-    view = np.eye(4, dtype=np.float32)
-
-    # Apply yaw (rotation around Y-axis) - Rotate around vertical axis (up)
-    yaw_matrix = np.array([
-        [np.cos(yaw), 0, np.sin(yaw), 0],
-        [0, 1, 0, 0],
-        [-np.sin(yaw), 0, np.cos(yaw), 0],
-        [0, 0, 0, 1]
-    ], dtype=np.float32)
-
-    # Apply pitch (rotation around X-axis) - Rotate around horizontal axis
-    pitch_matrix = np.array([
-        [1, 0, 0, 0],
-        [0, np.cos(pitch), -np.sin(pitch), 0],
-        [0, np.sin(pitch), np.cos(pitch), 0],
-        [0, 0, 0, 1]
-    ], dtype=np.float32)
-
-    # Combine yaw and pitch rotations
-    view = np.dot(view, yaw_matrix)
-    view = np.dot(view, pitch_matrix)
-
-    return view
 
 def dot_product(VecA, VecB):
     return VecA[0] * VecB[0] + VecA[1] * VecB[1] + VecA[2] * VecB[2]
@@ -300,7 +171,7 @@ def rotate_vector(rad, vec, axis):
 def view_matrix(yaw_deg, pitch_deg,  pos):
     global forward
     global up
-    global right
+
     yaw_rad = np.radians(yaw_deg)
     pitch_rad = np.radians(pitch_deg)
     scale = 50.0
@@ -348,6 +219,25 @@ def view_matrix(yaw_deg, pitch_deg,  pos):
     #print(view)
     return view
     
+def perspective(fovy, aspect, z_near, z_far, infinite=False):
+    radians = math.radians(fovy / 2)
+    cotangent = math.cos(radians) / math.sin(radians)
+    delta_z = z_far - z_near
+    epsilon = 0.001
+
+    m = np.zeros((4, 4), dtype=np.float32)
+
+    m[0, 0] = cotangent / aspect
+    m[1, 1] = cotangent
+    m[2, 2] = -(z_far + z_near) / delta_z
+    m[2, 3] = -1.0
+    m[3, 2] = -2 * z_near * z_far / delta_z
+
+    if infinite:
+        m[2, 2] = epsilon - 1.0
+        m[3, 2] = z_near * (epsilon - 2.0)
+
+    return m
 
 def mouse_button_callback(window, button, action, mods):
     global left_mouse_pressed
@@ -368,24 +258,28 @@ def cursor_position_callback(window, xpos, ypos):
 
 def key_callback(window, key, scancode, action, mods):
     global position
+    global up
+    global forward
     global offset_x
     global offset_z
     global rotate_angle
 
+    right = cross_product(up, forward)
+
     scale = 0.05
     if action in [glfw.PRESS, glfw.REPEAT]:
         if key == glfw.KEY_LEFT:
-            position[0] -= scale
+            position -= [item * scale for item in right]
         elif key == glfw.KEY_RIGHT:
-            position[0] += scale
+            position += [item * scale for item in right]
         elif key == glfw.KEY_ENTER:
-            position[1] -= scale
+            position -= [item * scale for item in up]
         elif key == glfw.KEY_LEFT_SHIFT or key == glfw.KEY_RIGHT_SHIFT:
-            position[1] += scale
+            position += [item * scale for item in up]
         elif key == glfw.KEY_UP:
-            position[2] += scale
+            position += [item * scale for item in forward]
         elif key == glfw.KEY_DOWN:
-            position[2] -= scale
+            position -= [item * scale for item in forward]
         elif key == glfw.KEY_W:
             offset_x += 0.125
         elif key == glfw.KEY_S:
@@ -398,7 +292,16 @@ def key_callback(window, key, scancode, action, mods):
             rotate_angle -= 5.0
         elif key == glfw.KEY_E:
             rotate_angle += 5.0
+
             
+def scroll_callback(window, xoffset, yoffset):
+    global z_scale
+    if yoffset > 0:
+        z_scale += 0.001
+    elif yoffset < 0:
+        z_scale -= 0.001
+
+
 
 def transform_data(left_vertices, left_colors, right_vertices, right_colors):
     global rotate_angle
@@ -429,16 +332,76 @@ def transform_data(left_vertices, left_colors, right_vertices, right_colors):
 
     
     right_vertex_data = np.hstack([transformed_points, right_colors])
+	
+    # Scale Z-axis for both left and right vertices
+    left_vertices[:, 2] *= z_scale
+    right_vertices[:, 2] *= z_scale
+	
+	
+	
     return left_vertex_data, right_vertex_data
+
+
+def triangles_from_aabb_with_color(aabb, color):
+    cube_triangles = [
+        [0, 4, 5], [0, 5, 1],
+        [2, 3, 7], [2, 7, 6],
+        [0, 1, 3], [0, 3, 2],
+        [4, 6, 7], [4, 7, 5],
+        [0, 2, 6], [0, 6, 4],
+        [1, 5, 7], [1, 7, 3]
+    ]
+
+    triangle_vertices = []
+
+    for tri in cube_triangles:
+        for idx in tri:
+            vertex = aabb[idx]
+            triangle_vertices.extend([vertex[0], vertex[1], vertex[2], color[0], color[1], color[2] ] )
+    return triangle_vertices
+    
+
+
+def make_aabb(min_xyz, max_xyz):
+    min_x, min_y, min_z = min_xyz
+    max_x, max_y, max_z = max_xyz
+
+    aabb = [
+        [min_x, min_y, min_z],  # i = 0b000
+        [min_x, min_y, max_z],  # i = 0b001
+        [min_x, max_y, min_z],  # i = 0b010
+        [min_x, max_y, max_z],  # i = 0b011
+        [max_x, min_y, min_z],  # i = 0b100
+        [max_x, min_y, max_z],  # i = 0b101
+        [max_x, max_y, min_z],  # i = 0b110
+        [max_x, max_y, max_z],  # i = 0b111
+    ]
+        
+    return aabb
+
+def generate_aabb(data_items, height, width, intrinsics):
+    all_triangles = []
+    for item in data_items:
+        min_point = transform_point(item['min_xyz'], height, width, intrinsics)
+        max_point = transform_point(item['max_xyz'], height, width, intrinsics)
+        aabb = make_aabb(min_point, max_point)
+        tri_data = triangles_from_aabb_with_color(aabb, item['color'])
+        all_triangles.append(tri_data)
+        
+    if not all_triangles:
+        return np.array([], dtype=np.float32)
+
+    return np.concatenate(all_triangles, axis=0)
 
 
 def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_colors, width, height):
     global old_x
     global old_y
 
-    window = init_opengl_context(width, height)
+    window = init_opengl_context(1920, 1080)
     
     glfw.set_mouse_button_callback(window, mouse_button_callback)
+    glfw.set_scroll_callback(window, scroll_callback)
     glfw.set_cursor_pos_callback(window, cursor_position_callback)
     glfw.set_key_callback(window, key_callback)
 
@@ -508,34 +471,8 @@ def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_co
     last_offset_x = offset_x
     last_rotate_angle = rotate_angle
 
-
-    box_vertex_data = np.zeros(3 * 3 + 3 * 3)
-
-    box_vertex_data[0] = -0.1
-    box_vertex_data[1] = -0.1
-    box_vertex_data[2] = -0.1
-
-    box_vertex_data[3] = random.uniform(0, 1)
-    box_vertex_data[4] = random.uniform(0, 1)
-    box_vertex_data[5] = random.uniform(0, 1)
-
-    box_vertex_data[6] = 0.1
-    box_vertex_data[7] = -0.1
-    box_vertex_data[8] = -0.1
-
-    box_vertex_data[9]  = random.uniform(0, 1)
-    box_vertex_data[10] = random.uniform(0, 1)
-    box_vertex_data[11] = random.uniform(0, 1)
-
-
-    box_vertex_data[12] = 0.1
-    box_vertex_data[13] = 0.1
-    box_vertex_data[14] = -0.1
-
-    box_vertex_data[15] = random.uniform(0, 1)
-    box_vertex_data[16] = random.uniform(0, 1)
-    box_vertex_data[17] = random.uniform(0, 1)
-
+    box_vertex_data = generate_aabb(data, height, width, intrinsics)
+    box_vertex_data = box_vertex_data.astype(np.float32)
 
     box_vbo = glGenBuffers(1)
     glBindBuffer(GL_ARRAY_BUFFER, box_vbo)
@@ -543,6 +480,8 @@ def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_co
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
     glBufferData(GL_ARRAY_BUFFER, box_vertex_data.nbytes, box_vertex_data, GL_STATIC_DRAW)
 
+
+    glBlendFunc(GL_ONE, GL_ONE)
    
     
     # Define the orthographic projection with infinite depth
@@ -619,15 +558,60 @@ def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_co
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
         glDrawArrays(GL_POINTS, 0, len(right_vertices))
-
+#        glEnable(GL_BLEND)
 #        glBindBuffer(GL_ARRAY_BUFFER, box_vbo)
 #        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
 #        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
 #        glDrawArrays(GL_TRIANGLES, 0, len(box_vertex_data))
+#        glDisable(GL_BLEND)
+		
 
         glfw.swap_buffers(window)
 
     glfw.terminate()
+
+
+
+def parse_file(filepath):
+    with open(filepath, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Match using regular expressions
+            match = re.match(
+                r'(\S+)\s+\[([^\]]+)\]\s+\[([^\]]+)\]',
+                line
+            )
+            if not match:
+                print(f"Line skipped (invalid format): {line}")
+                continue
+
+            filename = match.group(1)
+            bbox_str = match.group(2)
+            color_str = match.group(3)
+
+            try:
+                # Split bounding box into two 3D points
+                bbox_parts = bbox_str.split(',')
+                min_xyz = list(map(float, bbox_parts[0].strip().split()))
+                max_xyz = list(map(float, bbox_parts[1].strip().split()))
+
+                # Split RGB color
+                rgb = list(map(float, color_str.strip().split()))
+
+                data.append({
+                    'filename': filename,
+                    'min_xyz': min_xyz,
+                    'max_xyz': max_xyz,
+                    'color': rgb
+                })
+            except Exception as e:
+                print(f"Error parsing line: {line}\n{e}")
+
+    return data
+
 
 def perspective_from_intrinsics_infinite_depth(fx, fy, cx, cy, width, height, shift_x, shift_y, near=0.1):
     proj = np.zeros((4, 4), dtype=np.float32)
@@ -650,16 +634,21 @@ def perspective_from_intrinsics_infinite_depth(fx, fy, cx, cy, width, height, sh
 
 
 
-
-
-# Run it all together
 if __name__ == "__main__":
-    numpy.set_printoptions(threshold=sys.maxsize)
-    left_depth_img = load_depth_image("images/left.png", max_depth=1)
-    left_rgb_img = cv2.cvtColor(cv2.imread("images/left.JPG"), cv2.COLOR_BGR2RGB)
 
-    right_depth_img = load_depth_image("images/right.png", max_depth=1)
-    right_rgb_img = cv2.cvtColor(cv2.imread("images/right.JPG"), cv2.COLOR_BGR2RGB)
+    if len(sys.argv) < 5:
+        print("Usage python DepthToCloudStereo.py <left_rgb_file> <left_depth_file> <left_rgb_file> <left_depth_file> <aabb_file>\n")
+        exit()
+
+    numpy.set_printoptions(threshold=sys.maxsize)
+    print(f"Left RGB Image {sys.argv[1]} Depth Image {sys.argv[2]}")
+    print(f"Right RGB Image {sys.argv[3]} Depth Image {sys.argv[4]}")
+	
+    left_rgb_img = cv2.cvtColor(cv2.imread(sys.argv[1]), cv2.COLOR_BGR2RGB)
+    left_depth_img = load_depth_image(sys.argv[2], max_depth=1)
+
+    right_rgb_img = cv2.cvtColor(cv2.imread(sys.argv[3]), cv2.COLOR_BGR2RGB)
+    right_depth_img = load_depth_image(sys.argv[4], max_depth=1)
    
 
     height, width = left_depth_img.shape[:2]

@@ -56,7 +56,9 @@ def transform_point(point, height, width, intrinsics):
 
     fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
 
-    z = -1 / point[2]
+    depth = point[2]
+
+    z = -1 / depth
 
     x = (point[0] - cx) * z / fx
     y = (point[1] - cy) * z / fy
@@ -69,14 +71,17 @@ def transform_points_numpy(depth, intrinsics):
 
     fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
 
-    i, j = np.indices((h, w), dtype=np.int16)
+    j, i = np.indices((h, w), dtype=np.int16)
 
     # prevent divide by zero, zero means far away
     depth[depth == 0] = 1
+    
+    
+    # Kinect is Z = 1.0 / (raw_depth * -0.0030711016 + 3.3309495161)
     z = -1 / depth
 
-    x = (j - cx) * z / fx
-    y = (i - cy) * z / fy
+    x = (i - cx) * z / fx
+    y = (j - cy) * z / fy
     vertices = np.stack((x, y, z), axis=-1).reshape(-1, 3)
 
     return vertices
@@ -274,6 +279,7 @@ def key_callback(window, key, scancode, action, mods):
 
     
     
+
 def triangles_from_aabb_with_color(aabb, color):
     cube_triangles = [
         [0, 4, 5], [0, 5, 1],
@@ -405,7 +411,7 @@ def render_point_cloud_live(vertices, colors, width, height):
 
     # Use the modified infinite depth orthographic projection
     #proj = orthographic_projection_infinite_depth(left, right, bottom, top, near)
-    proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, -500, 500)
+    proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, 0, 0)
     #proj = perspective(fovy=36.87, aspect=2.0, z_near=0.1, z_far=1000.0, infinite=True)
 
     delta_x = yaw - old_x
