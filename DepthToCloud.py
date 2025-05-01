@@ -1,14 +1,15 @@
 import numpy as np
 import cv2
-
+from PIL import Image
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
 import glfw
 
 import sys
+import numpy
 import math
-
 import re
+import random
 
 
 last_x, last_y = 0, 0
@@ -19,6 +20,7 @@ left_mouse_pressed = False
 up 			= [0, 1, 0]
 forward = [0, 0, 1]
 
+z_scale = 1.0
 position = np.array([0.0, 0.0, 0.0], dtype=np.float32)  # X, Y, Z
 
 old_x = 0
@@ -73,7 +75,7 @@ def transform_point(point, height, width, intrinsics):
 
 
 def transform_points_numpy(depth, intrinsics):
-    global metrix
+    global metric
     h, w = depth.shape[:2]
 
     fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
@@ -287,6 +289,13 @@ def key_callback(window, key, scancode, action, mods):
             position -= [item * scale for item in forward]
 
 
+def scroll_callback(window, xoffset, yoffset):
+    global z_scale
+    if yoffset > 0:
+        z_scale += 0.001
+    elif yoffset < 0:
+        z_scale -= 0.001
+
     
     
 
@@ -347,6 +356,7 @@ def render_point_cloud_live(vertices, colors, width, height):
     window = init_opengl_context(1920, 1080)
     
     glfw.set_mouse_button_callback(window, mouse_button_callback)
+    glfw.set_scroll_callback(window, scroll_callback)
     glfw.set_cursor_pos_callback(window, cursor_position_callback)
     glfw.set_key_callback(window, key_callback)
     vertex_data = np.hstack([vertices, colors])

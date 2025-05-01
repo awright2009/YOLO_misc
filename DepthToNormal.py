@@ -7,9 +7,12 @@ import glfw
 
 import sys
 import numpy
+from pathlib import Path
+import sys
 
 
-def load_depth_image(path, max_depth=5.0):
+
+def load_depth_image(path, max_depth=1.0):
     """
     Loads a depth image and scales it to real-world depth in meters.
     Supports both 8-bit (0–255) and 16-bit (0–65535) grayscale images.
@@ -162,7 +165,7 @@ def render_mesh_to_image(vertices, colors, indices, width, height, output_path):
         raise Exception("Framebuffer not complete")
 
     # Upload projection/view matrices
-    proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, 250, 250)
+    proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, 500, 500)
     view = identity_view()
 
 
@@ -232,7 +235,7 @@ def save_mesh_to_obj(filename, vertices, indices, colors=None):
 # Run it all together
 if __name__ == "__main__":
     numpy.set_printoptions(threshold=sys.maxsize)
-    depth_img = load_depth_image("images/right_small.png", max_depth=1)
+    depth_img = load_depth_image(sys.argv[1], max_depth=1)
 
 
     height, width = depth_img.shape[:2]
@@ -241,5 +244,12 @@ if __name__ == "__main__":
 
     verts, colors, tris = depth_to_mesh(depth_img, intrinsics)
 
-    render_mesh_to_image(verts, colors, tris, width, height, "images/right_small_normal.png")
-    save_mesh_to_obj("output_mesh.obj", verts, tris, colors)
+
+    base = Path(sys.argv[1]).stem
+    filename = f"{base}_normal.png"
+
+    mesh_name = f"{base}_mesh.obj"
+
+    render_mesh_to_image(verts, colors, tris, width, height, filename)
+    print("Generating OBJ\n")
+    save_mesh_to_obj(mesh_name, verts, tris, colors)

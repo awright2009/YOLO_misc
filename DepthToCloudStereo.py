@@ -8,6 +8,7 @@ import glfw
 import sys
 import numpy
 import math
+
 import random
 
 
@@ -32,6 +33,8 @@ old_x = 0
 old_y = 0
 
 data = []
+
+metric = 0
 
 def load_depth_image(path, max_depth=1.0):
     """
@@ -63,7 +66,13 @@ def transform_point(point, height, width, intrinsics):
 
     fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
 
-    z = (-1 / point[2]) * z_scale
+    depth = point[2]
+
+
+    if metric:
+        z = -depth - 0.5
+    else:
+        z = -1 / depth
 
     x = (point[0] - cx) * z / fx
     y = (point[1] - cy) * z / fy
@@ -72,6 +81,7 @@ def transform_point(point, height, width, intrinsics):
 
 
 def transform_points_numpy(depth, intrinsics):
+    global metric
     h, w = depth.shape[:2]
 
     fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
@@ -80,7 +90,13 @@ def transform_points_numpy(depth, intrinsics):
 
     # prevent divide by zero, zero means far away
     depth[depth == 0] = 1
-    z = (-1 / depth) * z_scale
+    
+    
+    # Kinect is Z = 1.0 / (raw_depth * -0.0030711016 + 3.3309495161)
+    if metric:
+        z = -depth - 0.5
+    else:
+        z = -1 / depth
 
     x = (i - cx) * z / fx
     y = (j - cy) * z / fy
@@ -493,8 +509,8 @@ def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_co
 
     # Use the modified infinite depth orthographic projection
     #proj = orthographic_projection_infinite_depth(left, right, bottom, top, near)
-    proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, -250, 250)
-
+    proj = perspective_from_intrinsics_infinite_depth(width, height, width / 2.0, height / 2.0, width, height, int(sys.argv[5]), int(sys.argv[6]))
+    #proj = perspective(fovy=36.87, aspect=2.0, z_near=0.1, z_far=1000.0, infinite=True)
 
     delta_x = yaw - old_x
     delta_y = (pitch - old_y)
@@ -636,19 +652,30 @@ def perspective_from_intrinsics_infinite_depth(fx, fy, cx, cy, width, height, sh
 
 if __name__ == "__main__":
 
-    if len(sys.argv) < 5:
-        print("Usage python DepthToCloudStereo.py <left_rgb_file> <left_depth_file> <left_rgb_file> <left_depth_file> <aabb_file>\n")
+    if len(sys.argv) < 7:
+        print("Usage python DepthToCloudStereo.py <left_rgb_file> <left_depth_file> <left_rgb_file> <left_depth_file> <x_shift> <y_shift> <aabb_file>\n")
         exit()
 
     numpy.set_printoptions(threshold=sys.maxsize)
     print(f"Left RGB Image {sys.argv[1]} Depth Image {sys.argv[2]}")
     print(f"Right RGB Image {sys.argv[3]} Depth Image {sys.argv[4]}")
+    print(f"Pixel shifting by {sys.argv[5]} and {sys.argv[6]}")
 	
     left_rgb_img = cv2.cvtColor(cv2.imread(sys.argv[1]), cv2.COLOR_BGR2RGB)
+
+    if "metric" in sys.argv[2]:
+        metric = 1
+
     left_depth_img = load_depth_image(sys.argv[2], max_depth=1)
 
     right_rgb_img = cv2.cvtColor(cv2.imread(sys.argv[3]), cv2.COLOR_BGR2RGB)
     right_depth_img = load_depth_image(sys.argv[4], max_depth=1)
+
+    if len(sys.argv) == 8:
+        print(f"Loading boxes from {sys.argv[7]}")
+        data = parse_file(sys.argv[7])
+    else:
+        data = np.zeros(0)
    
 
     height, width = left_depth_img.shape[:2]
