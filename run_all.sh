@@ -54,6 +54,19 @@ cp isolate3*png "$work_dir/images/"
 left_depth_image="${left_image%.*}_depth.png"
 right_depth_image="${left_image%.*}_depth.png"
 
+#Change to work directory
+cd "$work_dir" || { echo "Failed to cd into $work_dir"; exit 1; }
+
+# This will generate a new object_depth.txt for each detected object
+rm object_depth.txt
+
+for file in ./images/isolate3_*depth.png; do 
+    if [ -f "$file" ]; then 
+	echo "python DepthToAABB.py "\"$file\"""
+        python DepthToAABB.py "$file"
+    fi 
+done
+
 # Render point cloud image with custom perspective
 python DepthToCloudImage.py "$left_image" "$left_depth_image" 0 1 0 0 -50
 python DepthToCloudImage.py "$right_image" "$right_depth_image" 0 1 0 0 -50
