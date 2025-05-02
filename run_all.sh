@@ -58,7 +58,7 @@ right_depth_image="${left_image%.*}_depth.png"
 cd "$work_dir" || { echo "Failed to cd into $work_dir"; exit 1; }
 
 # This will generate a new object_depth.txt for each detected object
-rm object_depth.txt
+rm object_depths.txt
 
 for file in ./images/isolate3_*depth.png; do 
     if [ -f "$file" ]; then 
