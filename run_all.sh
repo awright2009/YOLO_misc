@@ -51,8 +51,8 @@ python isolate3.py "$right_image"
 # Move generated isolate images
 cp isolate3*png "$work_dir/images/"
 
-left_depth_image="${left_image%.*}_depth.png"
-right_depth_image="${left_image%.*}_depth.png"
+left_depth_image="${left_image%.*}_metric.png"
+right_depth_image="${left_image%.*}_metric.png"
 
 #Change to work directory
 cd "$work_dir" || { echo "Failed to cd into $work_dir"; exit 1; }
@@ -69,14 +69,14 @@ done
 
 
 # These take a long time
-#python DepthToNormal.py "$left_depth_image" 5
-#python DepthToNormal.py "$right_depth_image" 5
+python DepthToNormal.py "$left_depth_image"
+python DepthToNormal.py "$right_depth_image"
 
-#python NormalToSegment.py "images/left_small_normal.png"
-#python NormalToSegment.py "images/right_small_normal.png"
+python NormalToSegment.py "images/left_small_normal.png" 5
+python NormalToSegment.py "images/right_small_normal.png" 5
 
-#python SegmentToMask.py "images/left_small_normal_segmented_labels.png"
-#python SegmentToMask.py "images/right_small_normal_segmented_labels.png"
+python SegmentToMask.py "images/left_small_normal_segmented_labels.png"
+python SegmentToMask.py "images/right_small_normal_segmented_labels.png"
 
 
 # Render point cloud image with custom perspective
