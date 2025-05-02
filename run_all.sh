@@ -73,10 +73,10 @@ done
 #python DepthToNormal.py "$right_depth_image" 5
 
 #python NormalToSegment.py "images/left_small_normal.png"
-#python NormalToSegment.py "images/left_small_normal.png"
+#python NormalToSegment.py "images/right_small_normal.png"
 
 #python SegmentToMask.py "images/left_small_normal_segmented_labels.png"
-#python SegmentToMask.py "images/left_small_normal_segmented_labels.png"
+#python SegmentToMask.py "images/right_small_normal_segmented_labels.png"
 
 
 # Render point cloud image with custom perspective
