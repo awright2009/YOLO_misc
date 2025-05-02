@@ -1,4 +1,5 @@
 import numpy as np
+from pathlib import Path
 from scipy.ndimage import label
 from PIL import Image
 import sys
@@ -104,7 +105,9 @@ labels = group_normals(normal_map_img, angle_tolerance_degrees=float(sys.argv[2]
 color_labels_img = labels_to_color_image(labels)
 
 # Save or display
-filename = sys.argv[1] + "_segmented_labels.png"
+input_path = Path(sys.argv[1])
+filename = input_path.with_name(input_path.stem + "_segmented_labels.png")
+
 
 Image.fromarray(color_labels_img).save(filename)
 

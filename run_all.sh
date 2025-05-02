@@ -67,6 +67,18 @@ for file in ./images/isolate3_*depth.png; do
     fi 
 done
 
+
+# These take a long time
+#python DepthToNormal.py "$left_depth_image" 5
+#python DepthToNormal.py "$right_depth_image" 5
+
+#python NormalToSegment.py "images/left_small_normal.png"
+#python NormalToSegment.py "images/left_small_normal.png"
+
+#python SegmentToMask.py "images/left_small_normal_segmented_labels.png"
+#python SegmentToMask.py "images/left_small_normal_segmented_labels.png"
+
+
 # Render point cloud image with custom perspective
 python DepthToCloudImage.py "$left_image" "$left_depth_image" 0 1 0 0 -50
 python DepthToCloudImage.py "$right_image" "$right_depth_image" 0 1 0 0 -50
