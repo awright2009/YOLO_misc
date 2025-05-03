@@ -1,0 +1,1 @@
+ffmpeg -i input.mp4 -vf fps=2 output%%04d.png
