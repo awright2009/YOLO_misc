@@ -1,6 +1,6 @@
 # YOLO_misc
 
-#Intro
+# Intro
 
 So, needed a project for a class and we were learning about YOLO and I thought to myself I wanted to get YOLO running and stick with CNN and image processing / computer vision. Me being me, I thought we should make the YOLO detections 3D, from there I started looking at Depth cameras and stumbled into DepthAnythingV2, which sounds awesome and makes this project not require a depth camera. The object detections from YOLO aren't great (really need to be pixel perfect in order to not pull depth from something else), but making a 3d bounding box from a point cloud is rather easy as it's just the min/max of the X,Y,Z from the depth mask. Note that SegmentAnything2 from Meta does a much better job with the masking of objects, but I used the ultralytics version which just gave numeric object id's that I didn't find super useful.
 
@@ -9,7 +9,8 @@ Anyway. eventually I stumbled into Nvidia's NeRF, which seems to use something c
 But, just yesterday I found out about Guassian splatting, which seems like a good idea, splatting has been used previously for rendering fluids, but this takes your 3d point cloud and makes the points gaussians which can then be corrected using gradient descent. Rendering the guassians directly is fairly fast as well, the biggest gating item is the memory requirements for storing all the data, which graphics cards can handle pretty readily now as that corresponds with the requirements for training Neural Networks. I'll have to read the paper and see if I can convert my point clouds to guassians and render them like the paper does, but for the most part my original goal of getting boxes on YOLO detections works pretty well assuming you have a good mask.
 
 
-Misc code (need to update this again as things have progressed since then)
+# Misc Code
+(need to update this again as things have progressed since then)
 
 	DepthToCloud.py -- Takes 16 bit depthmap image and corresponding rgb image and displays the depth and image as a point cloud
 
