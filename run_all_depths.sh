@@ -16,7 +16,7 @@ for rgb_file in "$RGB_DIR"/*.JPG; do
     # Run with normal depth file
     if [[ -f "$depth_file" ]]; then
         echo "Processing standard depth: $base_name"
-        python DepthToPly.py "$rgb_file" "$depth_file" 0 0
+        python DepthToPlyBin.py "$rgb_file" "$depth_file" 0 0
 
         ply_file="${base_name}.ply"
         if [[ -f "$ply_file" ]]; then
