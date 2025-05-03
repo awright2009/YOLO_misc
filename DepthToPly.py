@@ -592,7 +592,10 @@ if __name__ == "__main__":
 
     verts, colors, tris = depth_to_mesh(depth_img, intrinsics, rgb_img)
 
-    save_point_cloud_ply("point_cloud.ply", verts, colors)
-    print("Saved point cloud to point_cloud.ply")
+
+    ply_filename = os.path.splitext(os.path.basename(sys.argv[1]))[0] + ".ply"
+    save_point_cloud_ply(ply_filename, verts, colors)
+    print(f"Saved point cloud to {ply_filename}")
+
 
 
