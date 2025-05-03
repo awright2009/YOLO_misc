@@ -30,7 +30,7 @@ for rgb_file in "$RGB_DIR"/*.JPG; do
     # Run with metric depth file
     if [[ -f "$metric_depth_file" ]]; then
         echo "Processing metric depth: $base_name"
-        python DepthToPly.py "$rgb_file" "$metric_depth_file" 0 0
+        python DepthToPlyBin.py "$rgb_file" "$metric_depth_file" 0 0
 
         ply_file="${base_name}.ply"
         if [[ -f "$ply_file" ]]; then
