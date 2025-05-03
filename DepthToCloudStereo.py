@@ -485,6 +485,7 @@ def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_co
 
 
     last_offset_x = offset_x
+    last_offset_z = offset_z
     last_rotate_angle = rotate_angle
 
     box_vertex_data = generate_aabb(data, height, width, intrinsics)
@@ -560,6 +561,7 @@ def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_co
 	        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
 	        glBufferData(GL_ARRAY_BUFFER, right_vertex_data.nbytes, right_vertex_data, GL_DYNAMIC_DRAW)
 	        last_offset_x = offset_x
+            last_offset_z = offset_z
 	        last_rotate_angle = rotate_angle
 
         
