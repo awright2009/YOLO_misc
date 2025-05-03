@@ -40,7 +40,7 @@ But, just yesterday I found out about Guassian splatting, which seems like a goo
 
 	images/sam2/ - has isolated images output from sam2
 
-
+# Gaussian Splatting Link
 
 https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/
 
