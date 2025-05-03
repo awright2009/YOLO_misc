@@ -5,6 +5,7 @@ from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
 import glfw
 
+import os
 import sys
 import numpy
 import math
