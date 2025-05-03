@@ -1,5 +1,11 @@
 3D Gaussian Splatting for Real-Time Radiance Field Rendering
 https://arxiv.org/abs/2308.04079
+https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/
+https://github.com/graphdeco-inria/gaussian-splatting
+
+Getting started with Gaussian Splatting:
+https://www.youtube.com/watch?v=UXtuigy_wYc
+
 
 NeRF: Representing Scenes as Neural Radiance Fields for View Synthesis
 https://arxiv.org/abs/2003.08934
