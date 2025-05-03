@@ -547,7 +547,7 @@ def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_co
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         
         
-        if offset_x != last_offset_x or rotate_angle != last_rotate_angle:
+        if offset_x != last_offset_x or rotate_angle != last_rotate_angle or offset_z != last_offset_z:
 	        left_vertex_data, right_vertex_data = transform_data(left_vertices, left_colors, right_vertices, right_colors)
 	        
 	        glBindBuffer(GL_ARRAY_BUFFER, left_vbo)
