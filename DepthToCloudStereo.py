@@ -573,7 +573,6 @@ def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_co
 	        left_vertex_data, right_vertex_data = transform_data(left_vertices, left_colors, right_vertices, right_colors)
             
 	        if len(sys.argv) == 8:
-	            print(f"Loading boxes from {sys.argv[7]}")
 	            box_vertex_data = generate_aabb(data, height, width, intrinsics)
 	            box_vertex_data = box_vertex_data.astype(np.float32)
 
