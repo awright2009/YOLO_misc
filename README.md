@@ -9,7 +9,7 @@ Anyway. Eventually, I stumbled into Nvidia's NeRF, which seems to use something 
 But, just yesterday I found out about Guassian splatting, which seems like the right way to do point cloud rendering, splatting has been used previously for rendering fluids and clouds, but this takes your 3d point cloud and makes the points Gaussians which can then be corrected using gradient descent. Note that they really use ellipsoids which they scale and rotate as Gaussians can become invalid due to not being invertible. Rendering the Russians directly is fairly fast as well, the biggest gating item is the memory requirements for storing all the data, which graphics cards can handle pretty readily now as that corresponds with the requirements for training Neural Networks. I'll have to read the paper and see if I can convert my point clouds to Russians and render them like the paper does, but for the most part, my original goal of getting boxes on YOLO detections works pretty well assuming you have a good mask. At least for me taking a point cloud, and converting them to ellipsoids of a unit length seems easy enough, but using backpropagation to reshape them doesn't jump out to me as something easy to do.
 
 # Videos of Point Cloud Rendering
-https://youtu.be/BEzJnkijnTE
+https://youtu.be/gnjmazjuQhY
 
 # Misc Code
 (need to update this again as things have progressed since then)
