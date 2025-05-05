@@ -8,7 +8,7 @@ import glfw
 import sys
 import numpy
 import math
-
+import re
 import random
 
 
@@ -297,17 +297,17 @@ def key_callback(window, key, scancode, action, mods):
         elif key == glfw.KEY_DOWN:
             position -= [item * scale for item in forward]
         elif key == glfw.KEY_W:
-            offset_x += 0.125
+            offset_x += 0.001
         elif key == glfw.KEY_S:
-            offset_x -= 0.125
+            offset_x -= 0.001
         elif key == glfw.KEY_A:
-            offset_z += 0.125
+            offset_z += 0.001
         elif key == glfw.KEY_D:
-            offset_z -= 0.125
+            offset_z -= 0.001
         elif key == glfw.KEY_Q:
-            rotate_angle -= 5.0
+            rotate_angle -= 0.1
         elif key == glfw.KEY_E:
-            rotate_angle += 5.0
+            rotate_angle += 0.1
 
             
 def scroll_callback(window, xoffset, yoffset):
@@ -323,14 +323,14 @@ def transform_data(left_vertices, left_colors, right_vertices, right_colors):
     global rotate_angle
     global offset_x
     # Define angle in radians
-    theta = np.radians(rotate_angle)  # 60 degrees -> radians
+    theta = np.radians(rotate_angle)
 
 
     left_vertex_data = np.hstack([left_vertices, left_colors])
    
     
     # Define angle in radians
-    theta = np.radians(rotate_angle)  # 60 degrees -> radians
+    theta = np.radians(rotate_angle)
 
     # Rotation matrix around Y-axis
     rotation_matrix = np.array([
@@ -396,10 +396,30 @@ def make_aabb(min_xyz, max_xyz):
     return aabb
 
 def generate_aabb(data_items, height, width, intrinsics):
+    global rotate_angle
+    global offset_x
+    global offset_z
+    
     all_triangles = []
     for item in data_items:
         min_point = transform_point(item['min_xyz'], height, width, intrinsics)
         max_point = transform_point(item['max_xyz'], height, width, intrinsics)
+        
+        if "right_straight" in item['filename']:
+            theta = np.radians(rotate_angle)
+            # Rotation matrix around Y-axis
+            rotation_matrix = np.array([
+                [np.cos(theta), 0, np.sin(theta)],
+                [0, 1, 0],
+                [-np.sin(theta), 0, np.cos(theta)]
+            ])
+
+            # Define your XYZ offset
+            offset = np.array([offset_x, 0.0, offset_z])  # Replace with your desired offset
+            min_point = min_point @ rotation_matrix.T + offset
+            max_point = max_point @ rotation_matrix.T + offset        
+        
+        
         aabb = make_aabb(min_point, max_point)
         tri_data = triangles_from_aabb_with_color(aabb, item['color'])
         all_triangles.append(tri_data)
@@ -413,6 +433,7 @@ def generate_aabb(data_items, height, width, intrinsics):
 def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_colors, width, height):
     global old_x
     global old_y
+    global data
 
     window = init_opengl_context(1920, 1080)
     
@@ -485,6 +506,7 @@ def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_co
 
 
     last_offset_x = offset_x
+    last_offset_z = offset_z
     last_rotate_angle = rotate_angle
 
     box_vertex_data = generate_aabb(data, height, width, intrinsics)
@@ -494,7 +516,7 @@ def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_co
     glBindBuffer(GL_ARRAY_BUFFER, box_vbo)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
-    glBufferData(GL_ARRAY_BUFFER, box_vertex_data.nbytes, box_vertex_data, GL_STATIC_DRAW)
+    glBufferData(GL_ARRAY_BUFFER, box_vertex_data.nbytes, box_vertex_data, GL_DYNAMIC_DRAW)
 
 
     glBlendFunc(GL_ONE, GL_ONE)
@@ -547,8 +569,20 @@ def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_co
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         
         
-        if offset_x != last_offset_x or rotate_angle != last_rotate_angle:
+        if offset_x != last_offset_x or rotate_angle != last_rotate_angle or offset_z != last_offset_z:
 	        left_vertex_data, right_vertex_data = transform_data(left_vertices, left_colors, right_vertices, right_colors)
+            
+	        if len(sys.argv) == 8:
+	            box_vertex_data = generate_aabb(data, height, width, intrinsics)
+	            box_vertex_data = box_vertex_data.astype(np.float32)
+
+	            glBindBuffer(GL_ARRAY_BUFFER, box_vbo)
+	            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
+	            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
+	            glBufferData(GL_ARRAY_BUFFER, box_vertex_data.nbytes, box_vertex_data, GL_DYNAMIC_DRAW)
+
+
+            
 	        
 	        glBindBuffer(GL_ARRAY_BUFFER, left_vbo)
 	        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
@@ -560,6 +594,7 @@ def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_co
 	        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
 	        glBufferData(GL_ARRAY_BUFFER, right_vertex_data.nbytes, right_vertex_data, GL_DYNAMIC_DRAW)
 	        last_offset_x = offset_x
+	        last_offset_z = offset_z
 	        last_rotate_angle = rotate_angle
 
         
@@ -574,12 +609,13 @@ def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_co
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
         glDrawArrays(GL_POINTS, 0, len(right_vertices))
-#        glEnable(GL_BLEND)
-#        glBindBuffer(GL_ARRAY_BUFFER, box_vbo)
-#        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
-#        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
-#        glDrawArrays(GL_TRIANGLES, 0, len(box_vertex_data))
-#        glDisable(GL_BLEND)
+        glEnable(GL_BLEND)
+        
+        glBindBuffer(GL_ARRAY_BUFFER, box_vbo)
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(0))  # position
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 24, ctypes.c_void_p(12))  # color
+        glDrawArrays(GL_TRIANGLES, 0, len(box_vertex_data))
+        glDisable(GL_BLEND)
 		
 
         glfw.swap_buffers(window)
@@ -589,6 +625,9 @@ def render_point_cloud_live(left_vertices, left_colors, right_vertices, right_co
 
 
 def parse_file(filepath):
+    global rotate_angle
+    global offset_x
+    global offset_z
     with open(filepath, 'r') as file:
         for line in file:
             line = line.strip()
@@ -607,6 +646,8 @@ def parse_file(filepath):
             filename = match.group(1)
             bbox_str = match.group(2)
             color_str = match.group(3)
+            
+            
 
             try:
                 # Split bounding box into two 3D points
@@ -616,7 +657,7 @@ def parse_file(filepath):
 
                 # Split RGB color
                 rgb = list(map(float, color_str.strip().split()))
-
+                
                 data.append({
                     'filename': filename,
                     'min_xyz': min_xyz,
@@ -654,7 +695,7 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 7:
         print("Usage python DepthToCloudStereo.py <left_rgb_file> <left_depth_file> <left_rgb_file> <left_depth_file> <x_shift> <y_shift> <aabb_file>\n")
-        exit()
+        quit()
 
     numpy.set_printoptions(threshold=sys.maxsize)
     print(f"Left RGB Image {sys.argv[1]} Depth Image {sys.argv[2]}")
