@@ -1,17 +1,33 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+import sys
+import os
 
-def colmap_pose_to_matrix(qvec, tvec):
-    # Convert quaternion to rotation matrix
-    R_wc = R.from_quat([qvec[1], qvec[2], qvec[3], qvec[0]]).as_matrix()
-    t_wc = np.array(tvec).reshape((3, 1))
-
-    # 4x4 transformation matrix (world to camera)
-    T_wc = np.eye(4)
-    T_wc[:3, :3] = R_wc
-    T_wc[:3, 3] = t_wc.flatten()
+def quaternion_to_rotation_matrix(q):
+    """
+    Converts a quaternion [w, x, y, z] into a 3x3 rotation matrix.
     
-    return T_wc
+    Parameters:
+        q (list or array): Quaternion in the form [w, x, y, z]
+    
+    Returns:
+        numpy.ndarray: 3x3 rotation matrix
+    """
+    w, x, y, z = q
+
+    # Normalize the quaternion to avoid scaling issues
+    norm = np.sqrt(w*w + x*x + y*y + z*z)
+    w, x, y, z = w / norm, x / norm, y / norm, z / norm
+
+    R = np.array([
+        [1 - 2*y*y - 2*z*z, 2*x*y - 2*z*w,     2*x*z + 2*y*w],
+        [2*x*y + 2*z*w,     1 - 2*x*x - 2*z*z, 2*y*z - 2*x*w],
+        [2*x*z - 2*y*w,     2*y*z + 2*x*w,     1 - 2*x*x - 2*y*y]
+    ])
+    
+    return R
+
+
 
 def load_colmap_poses(images_txt_path, invert_poses=False):
     poses_by_name = {}
@@ -33,13 +49,9 @@ def load_colmap_poses(images_txt_path, invert_poses=False):
             tvec = list(map(float, parts[5:8]))  # tx, ty, tz
             image_name = parts[-1]
 
-            T_wc = colmap_pose_to_matrix(qvec, tvec)
 
-            if invert_poses:
-                T_cw = np.linalg.inv(T_wc)
-                poses_by_name[image_name] = T_cw
-            else:
-                poses_by_name[image_name] = T_wc
+            poses_by_name[image_name] = {"pos" : tvec, "orientation" : qvec}
+
 
             i += 2  # Skip the corresponding 2D-3D point line
         else:
@@ -49,6 +61,18 @@ def load_colmap_poses(images_txt_path, invert_poses=False):
 
 poses = load_colmap_poses("images.txt", invert_poses=True)
 
-# Access the pose of "image001.jpg"
-pose = poses["image001.jpg"]
+if len(sys.argv) < 2:
+    print("Usage: python image_pose.py <image_name>")
+    print("Note: expects images.txt in same directory as script")
+    quit()
+
+filename = os.path.basename(sys.argv[1])
+pose = poses[filename]
+
+print("position:\n", pose["pos"])
+print("orientation quat:\n", pose["orientation"])
+R = quaternion_to_rotation_matrix(pose["orientation"])         
+print("orientation matrix:\n", R)
+
+
 print(pose)
