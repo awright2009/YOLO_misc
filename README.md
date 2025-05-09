@@ -11,38 +11,6 @@ But, just yesterday I found out about Guassian splatting, which seems like the r
 # Videos of Point Cloud Rendering
 https://youtu.be/gnjmazjuQhY
 
-
-# Directories
-	COLMAP - Colmap sample images, pose extractor (from images.txt) and point clouds (ply files)
-	
-	DepthAnythingV2 - Scripts used to run DepthAnythingV2
-	
-	RANSAC -- RANSAC test code (just divides point cloud by a plane)
-	
-	VideoToImages -- ffmpeg bat and sh file to take a video and get frame images every 500ms (also has ffmpeg.exe in zip)
-	
-	YOLOv11 -- Scripts for running YOLOv11, isolate3.py gets detection masks scaled down 80%
-	
-	YOLOv3 -- Scripts / environment setup for running darknet / YOLOv3
-	
-	images -- lots of images, notably left.JPG and right.JPG, gopro images have capitalized JPG suffix. left_metric.png / right_metric.jpg and left.png right.png are depth images from depth anything v2 (metric and non metric)
-
-	kinect -- original kinect camera frame extraction code (DepthWithColor-D3D-bin.zip) Python scripts convert raw file to images (ViewRGBX.py / ViewDepth.py) data has some saved frames
-
-	left_groups -- plane masks generated from normals (top four groups by pixel count) from left image
-	
-	right_groups -- plane masks generated from normals (top four groups by pixel count) from left image
-
-	matlab -- matlab point cloud viewer code
-	
-	mesh - obj files generated during normal creation (left.7z / right.7z) depth_scene.obj is the cubes / cylinder example image from powerpoint / proposal
-	
-	papers - Papers I thought were related / worth reading. 3D Gaussian Splatting, NeRFs, Screen space fluid rendering (essentially splatting), Screen space meshes (essentially precursor to splatting)
-	
-	rendered_output - output directory for DR_StereoPointCloud_Match_target.py -- which is my differentiable rendering test code (needs work)
-	
-	sam2 -- scripts I used for object masks from SAM2 using ultralytics API's
-	
 # Python Code
 
 	CloudViewer.py -- Takes a binary PLY file and renders it similar to DepthToCloud.py
@@ -84,6 +52,37 @@ https://youtu.be/gnjmazjuQhY
 	webcam2.py -- This just runs bounding box yolo11 against a webcam (Figure my Mac Mini M4 is a good YOLO webcam box) -- but could also be put together with run_all.sh to run the whole shebang
 	
 	yolo3d.pdf -- pdf slides, don't have the differentiable rendering addendum though which was last minute
+
+# Directories
+	COLMAP - Colmap sample images, pose extractor (from images.txt) and point clouds (ply files)
+	
+	DepthAnythingV2 - Scripts used to run DepthAnythingV2
+	
+	RANSAC -- RANSAC test code (just divides point cloud by a plane)
+	
+	VideoToImages -- ffmpeg bat and sh file to take a video and get frame images every 500ms (also has ffmpeg.exe in zip)
+	
+	YOLOv11 -- Scripts for running YOLOv11, isolate3.py gets detection masks scaled down 80%
+	
+	YOLOv3 -- Scripts / environment setup for running darknet / YOLOv3
+	
+	images -- lots of images, notably left.JPG and right.JPG, gopro images have capitalized JPG suffix. left_metric.png / right_metric.jpg and left.png right.png are depth images from depth anything v2 (metric and non metric)
+
+	kinect -- original kinect camera frame extraction code (DepthWithColor-D3D-bin.zip) Python scripts convert raw file to images (ViewRGBX.py / ViewDepth.py) data has some saved frames
+
+	left_groups -- plane masks generated from normals (top four groups by pixel count) from left image
+	
+	right_groups -- plane masks generated from normals (top four groups by pixel count) from left image
+
+	matlab -- matlab point cloud viewer code
+	
+	mesh - obj files generated during normal creation (left.7z / right.7z) depth_scene.obj is the cubes / cylinder example image from powerpoint / proposal
+	
+	papers - Papers I thought were related / worth reading. 3D Gaussian Splatting, NeRFs, Screen space fluid rendering (essentially splatting), Screen space meshes (essentially precursor to splatting)
+	
+	rendered_output - output directory for DR_StereoPointCloud_Match_target.py -- which is my differentiable rendering test code (needs work)
+	
+	sam2 -- scripts I used for object masks from SAM2 using ultralytics API's
 
 # Gaussian Splatting Link
 
