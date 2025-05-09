@@ -11,38 +11,84 @@ But, just yesterday I found out about Guassian splatting, which seems like the r
 # Videos of Point Cloud Rendering
 https://youtu.be/gnjmazjuQhY
 
-# Misc Code
-(need to update this again as things have progressed since then)
+
+# Directories
+	COLMAP - Colmap sample images, pose extractor (from images.txt) and point clouds (ply files)
+	
+	DepthAnythingV2 - Scripts used to run DepthAnythingV2
+	
+	RANSAC -- RANSAC test code (just divides point cloud by a plane)
+	
+	VideoToImages -- ffmpeg bat and sh file to take a video and get frame images every 500ms (also has ffmpeg.exe in zip)
+	
+	YOLOv11 -- Scripts for running YOLOv11, isolate3.py gets detection masks scaled down 80%
+	
+	YOLOv3 -- Scripts / environment setup for running darknet / YOLOv3
+	
+	images -- lots of images, notably left.JPG and right.JPG, gopro images have capitalized JPG suffix. left_metric.png / right_metric.jpg and left.png right.png are depth images from depth anything v2 (metric and non metric)
+
+	kinect -- original kinect camera frame extraction code (DepthWithColor-D3D-bin.zip) Python scripts convert raw file to images (ViewRGBX.py / ViewDepth.py) data has some saved frames
+
+	left_groups -- plane masks generated from normals (top four groups by pixel count) from left image
+	
+	right_groups -- plane masks generated from normals (top four groups by pixel count) from left image
+
+	matlab -- matlab point cloud viewer code
+	
+	mesh - obj files generated during normal creation (left.7z / right.7z) depth_scene.obj is the cubes / cylinder example image from powerpoint / proposal
+	
+	papers - Papers I thought were related / worth reading. 3D Gaussian Splatting, NeRFs, Screen space fluid rendering (essentially splatting), Screen space meshes (essentially precursor to splatting)
+	
+	rendered_output - output directory for DR_StereoPointCloud_Match_target.py -- which is my differentiable rendering test code (needs work)
+	
+	sam2 -- scripts I used for object masks from SAM2 using ultralytics API's
+	
+# Python Code
+
+	CloudViewer.py -- Takes a binary PLY file and renders it similar to DepthToCloud.py
+
+	DR_StereoPointCloud_Match_Target.py -- (non functional currently) Working code for differentiable rendering (ie: match point cloud to target using gradient descent)
+
+	DepthToAABB.py -- Takes masked depth images and converts them to AABB's stored in object_depths.txt for loading by Point Cloud viewers
 
 	DepthToCloud.py -- Takes 16 bit depthmap image and corresponding rgb image and displays the depth and image as a point cloud
+	
+	DepthToCloudImage.py -- Same as above, but just renders to a output image instead of viewing live
+	
+	DepthToCloudStereo.py -- Same as DepthToCloud, but loads two RGB and depth images to allow for matching between the sets
 
 	DepthToNormal.py -- Takes 16 bit depthmap image and generates a mesh colored by normal color and writes the image to disk.
 		See images/left_small_normal.png and images/right_small_normal.png
 
+	DepthToPly.py -- Takes 16 bit depthmap and RGB image and writes it out to a binary PLY file
+
+	NormalToSegment.py -- Takes a Normal image and groups the normals into groups based on angle tolerance value writes out the groups to a file
+	
+	SegmentToMask.py -- Takes the grouped normals and generates isolated masks of the top four by pixel count
+	
 	ObjToDepth.py -- Takes a OBJ file and writes the depth map to disk (used with mesh/depth_scene.obj to generate images/16depth.png)
 
-	depth_min_max.py -- Takes 16 bit depth image that has been segmented by YOLOv11 or SAM2 to get the min/max depth values for the masked object
+	cpu_melter.py -- Test code for differentiable rendering, takes a few randomly initialized triangles and attempts to match the target image.
+		(see cpu_melter.png which was run against images/left.JPG) -- Note runs on CPU and takes a long time
 
-	get_depth.sh -- Generates command line for above for each isolate*png
+	get_depths.sh -- This just prints DepthToAABB.py commands for each images/isolate3_*depth.png
 
-	normal_segmentation.py -- Takes the normal image and groups normals together based on similar directionality, idea being it can form as a method of segmenting large planes (not great)
-		see images/left_segmented_labels.png images/right_segmented_labels.png
+	run_all.sh -- This is intended to run all operations, could connect with webcam2 and attempt to get real time output
 
-	YOLOv11 directory contains ultralytics YOLOv11 python scripts for image segmentation and isolation
+	run_all_depths.sh -- This is just for convience of converting all the images in the COLMAP directory
 
-	YOLOv3 directory contains python scripts for running YOLOv3 and environment setup
-
-	sam2 directory contains ultralytics sam2 python scripts for image segmentation and isolation
-
-	mesh - contains wavefront obj meshes (some 7ziped depth meshes due to size over 100mb)
-
-	DepthAnythingV2 - Has scripts for running DepthAnythingV2 that outputs 16 bit depth images for a given input image
-
-	images - has various images generated from left.JPG and right.JPG, isolated and object detections, as well as normal and depth maps from DepthAnythingV2
-
-	images/sam2/ - has isolated images output from sam2
+	stereo.py -- This is opencv traditional stereo image depth generation (results not good)
+	
+	test_cuda.py -- This is just a check to be sure CUDA is available (specifically for DR_StereoPointCloud_Match_target.py)
+	
+	webcam2.py -- This just runs bounding box yolo11 against a webcam (Figure my Mac Mini M4 is a good YOLO webcam box) -- but could also be put together with run_all.sh to run the whole shebang
+	
+	yolo3d.pdf -- pdf slides, don't have the differentiable rendering addendum though which was last minute
 
 # Gaussian Splatting Link
 
 https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/
 
+# Good Inverse Rendering / Differentiable Rendering run down
+
+https://jjbannister.github.io/tinydiffrast/
